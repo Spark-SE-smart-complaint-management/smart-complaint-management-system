@@ -87,3 +87,19 @@ class ComplaintHistoryOut(BaseModel):
     timestamp: datetime
 
     model_config = {"from_attributes": True}
+
+
+# Issue #10: Complaint comments
+
+class CommentCreateIn(BaseModel):
+    content: str = Field(min_length=1, max_length=5000)
+
+
+class CommentOut(BaseModel):
+    id: int
+    complaint_id: int
+    author_id: int
+    content: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
