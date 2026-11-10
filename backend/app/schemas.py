@@ -1,3 +1,4 @@
+
 from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field
@@ -45,8 +46,7 @@ class AdminUpdateUserIn(BaseModel):
     department: str | None = Field(default=None, max_length=50)
 
 
-
-
+# Issue #3: Complaint submission
 
 class ComplaintCreateIn(BaseModel):
     title: str = Field(min_length=1, max_length=100)
@@ -64,5 +64,26 @@ class ComplaintOut(BaseModel):
     priority: Priority | None
     status: Status
     created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+# Issue #5: Complaint status and history
+
+class ComplaintStatusUpdateIn(BaseModel):
+    status: Status
+    reason: str | None = Field(default=None, max_length=500)
+
+
+class ComplaintHistoryOut(BaseModel):
+    id: int
+    complaint_id: int
+    actor_id: int | None
+    action: str
+    from_value: str | None
+    to_value: str | None
+    trigger_type: str | None
+    reason: str | None
+    timestamp: datetime
 
     model_config = {"from_attributes": True}
