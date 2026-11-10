@@ -1,6 +1,8 @@
+from datetime import datetime
+
 from pydantic import BaseModel, EmailStr, Field
 
-from app.models import Role
+from app.models import Priority, Role, Status
 
 
 class RegisterIn(BaseModel):
@@ -41,3 +43,22 @@ class AdminUpdateUserIn(BaseModel):
     role: Role | None = None
     is_active: bool | None = None
     department: str | None = Field(default=None, max_length=50)
+
+
+class ComplaintStatusUpdateIn(BaseModel):
+    status: Status
+    reason: str | None = Field(default=None, max_length=500)
+
+
+class ComplaintHistoryOut(BaseModel):
+    id: int
+    complaint_id: int
+    actor_id: int | None
+    action: str
+    from_value: str | None
+    to_value: str | None
+    trigger_type: str | None
+    reason: str | None
+    timestamp: datetime
+
+    model_config = {"from_attributes": True}
