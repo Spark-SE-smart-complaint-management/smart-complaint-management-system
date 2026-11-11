@@ -60,7 +60,7 @@ def _get_closure_time(db: Session, complaint_id: int):
         db.query(AuditLog)
         .filter(
             AuditLog.complaint_id == complaint_id,
-            AuditLog.action == "STATUS_CHANGE",
+            AuditLog.action.in_(["STATUS_CHANGE", "COMPLAINT_ASSIGNED", "COMPLAINT_REASSIGNED"]),
             AuditLog.to_value == Status.CLOSED.value,
         )
         .order_by(AuditLog.timestamp.desc(), AuditLog.id.desc())
