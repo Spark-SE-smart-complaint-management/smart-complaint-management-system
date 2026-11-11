@@ -60,7 +60,7 @@ def _get_closure_time(db: Session, complaint_id: int):
         db.query(AuditLog)
         .filter(
             AuditLog.complaint_id == complaint_id,
-            AuditLog.action.in_(["STATUS_CHANGE", "COMPLAINT_ASSIGNED", "COMPLAINT_REASSIGNED"]),
+            AuditLog.action == "STATUS_CHANGE",
             AuditLog.to_value == Status.CLOSED.value,
         )
         .order_by(AuditLog.timestamp.desc(), AuditLog.id.desc())
@@ -207,7 +207,7 @@ def get_complaint_history(
         db.query(AuditLog)
         .filter(
             AuditLog.complaint_id == complaint.id,
-            AuditLog.action == "STATUS_CHANGE",
+            AuditLog.action.in_(["STATUS_CHANGE", "COMPLAINT_ASSIGNED", "COMPLAINT_REASSIGNED"]),
         )
         .order_by(AuditLog.timestamp.asc(), AuditLog.id.asc())
         .all()
