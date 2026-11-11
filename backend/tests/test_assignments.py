@@ -168,3 +168,32 @@ def test_assignment_rejects_resolved_complaint(client, db):
         headers=headers,
     )
     assert response.status_code == 409
+
+
+def test_complainant_history_includes_assignment_and_reassignment(client, db):
+    headers = admin_headers(client, db)
+    citizen = make_user(db, "history-citizen@example.com")
+    first = make_user(db, "history-staff1@example.com", Role.STAFF, department="Water")
+    second = make_user(db, "history-staff2@example.com", Role.STAFF, department="Water")
+    complaint = make_complaint(db, citizen)
+
+    client.post(
+        f"/complaints/{complaint.id}/assign",
+        json={"staff_id": first.id},
+        headers=headers,
+    )
+    client.post(
+        f"/complaints/{complaint.id}/assign",
+        json={"staff_id": second.id, "reason": "Workload balancing."},
+        headers=headers,
+    )
+
+    response = client.get(
+        f"/complaints/{complaint.id}/history",
+        headers=auth_header(client, citizen.email),
+    )
+
+    assert response.status_code == 200
+    actions = [row["action"] for row in response.json()]
+    assert actions == ["COMPLAINT_ASSIGNED", "COMPLAINT_REASSIGNED"]
+    assert response.json()[1]["reason"] == "Workload balancing."
