@@ -1,10 +1,10 @@
-
 from fastapi import FastAPI
 
 from app import models  # noqa: F401 (registers tables)
 from app.database import Base, engine
 from app.routers import (
     attachments,
+    assignments,
     auth,
     categories,
     comments,
@@ -27,6 +27,7 @@ app.include_router(categories.router)
 app.include_router(triage.router)
 app.include_router(complaints.router)
 app.include_router(complaint_status.router)
+app.include_router(assignments.router)
 
 # Issue #10: Comments and attachments
 app.include_router(comments.router)

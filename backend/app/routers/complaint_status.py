@@ -207,7 +207,7 @@ def get_complaint_history(
         db.query(AuditLog)
         .filter(
             AuditLog.complaint_id == complaint.id,
-            AuditLog.action == "STATUS_CHANGE",
+            AuditLog.action.in_(["STATUS_CHANGE", "COMPLAINT_ASSIGNED", "COMPLAINT_REASSIGNED"]),
         )
         .order_by(AuditLog.timestamp.asc(), AuditLog.id.asc())
         .all()
