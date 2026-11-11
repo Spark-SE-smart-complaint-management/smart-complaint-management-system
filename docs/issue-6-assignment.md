@@ -16,7 +16,7 @@ Current workload is the count of non-archived complaints assigned to each active
 
 ## Assignment semantics
 
-A complaint has either `assignee_id` or `assigned_department`, never both. Staff assignment creates an in-app notification for that staff member. Department assignment creates an in-app notification for every active staff member in that department. Both set status to `Assigned`. Assignment and reassignment are appended to the existing audit log, with old/new owner, actor, trigger type and reason.
+A complaint has either `assignee_id` or `assigned_department`, never both. Staff assignment creates an in-app notification for that staff member. Department assignment creates an in-app notification for every active staff member in that department. Both set status to `Assigned`. Assignment and reassignment are appended to the existing audit log, with old/new owner, actor, trigger type and reason. The existing complaint history endpoint now includes assignment and reassignment events alongside status changes.
 
 ## Existing database migration
 
