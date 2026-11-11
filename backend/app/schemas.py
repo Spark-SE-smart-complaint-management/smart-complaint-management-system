@@ -1,4 +1,3 @@
-
 from datetime import datetime
 
 from pydantic import BaseModel, EmailStr, Field
@@ -63,6 +62,8 @@ class ComplaintOut(BaseModel):
     category_id: int | None
     priority: Priority | None
     status: Status
+    assignee_id: int | None
+    assigned_department: str | None
     created_at: datetime
 
     model_config = {"from_attributes": True}
