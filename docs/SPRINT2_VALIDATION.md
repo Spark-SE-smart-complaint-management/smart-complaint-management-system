@@ -6,17 +6,17 @@
 - `backend/tests/test_notifications.py`: channel preferences, user-scoped inbox, notification idempotency, provider failure tracking, retry, and admin delivery visibility.
 - `backend/tests/test_sprint2_integration.py`: citizen submission through triage, assignment, status changes, notifications, reopening, and reporting.
 - `backend/scripts/load_test.py`: configurable concurrent health/dashboard/inbox reads and complaint submissions; reports overall and per-route p95 and maximum latency against the 3-second read and 2-second submission targets.
-- CI runs an expected 50-client profile and a 500-client peak profile. It uses 10 API workers, 40 thread tokens per worker, and a 15-connection SQLite pool per worker.
+- CI runs expected-load (50 clients) and peak-load (500 clients) profiles. The current benchmark uses 10 API workers, 40 thread tokens per worker, and a 15-connection SQLite pool per worker.
 
 ## Latest CI evidence
 
 - Formatting, lint, compile checks, and all 90 backend tests passed.
-- Expected load (50 concurrent clients, 150 reads): p95 0.310 s, maximum 0.456 s; five submissions max 0.118 s; no failures. The target check passed.
-- Peak load (500 concurrent clients, 1,500 reads): p95 3.227 s, maximum 3.871 s; five submissions max 0.095 s; no failures. The read target still fails at peak.
-- Concurrent complaint submissions previously exposed a reference-number race. References now derive from the database-assigned complaint ID, and the latest five-submission samples completed without conflicts.
-- These are GitHub-hosted CI measurements; they vary with runner capacity and do not substitute for production-like deployment testing.
+- Expected load (50 concurrent clients, 150 reads): p95 0.342 s, maximum 0.534 s; five submissions max 0.076 s; no failures. The SRS target check passed.
+- Peak load (500 concurrent clients, 1,500 reads): latest run p95 5.251 s and maximum 6.063 s; five submissions max 0.060 s; no failures. A previous run with the same settings measured p95 3.227 s and maximum 3.871 s. Both exceed the 3-second read target, and the results vary with hosted runner capacity.
+- Concurrent complaint reference generation now uses the database-assigned complaint ID; the latest submission runs completed without reference conflicts.
+- These are GitHub-hosted CI measurements, not production-hardware results.
 
-Run the full backend suite with `python -m pytest backend/tests -q`; run lint with `python -m ruff check backend`. To reproduce the hosted load profiles, use the commands in `.github/workflows/backend-tests.yml`.
+Run the full backend suite with `python -m pytest backend/tests -q`; run lint with `python -m ruff check backend`. The expected and peak load commands are in `.github/workflows/backend-tests.yml`.
 
 ## Acceptance gaps and dependencies
 
