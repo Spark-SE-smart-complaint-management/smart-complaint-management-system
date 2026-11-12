@@ -225,4 +225,3 @@ def get_complaint(
         )
 
     return complaint
-
