@@ -1,3 +1,7 @@
+import os
+from contextlib import asynccontextmanager
+
+import anyio.to_thread
 from fastapi import FastAPI
 
 from app import models  # noqa: F401 (registers tables)
@@ -20,7 +24,18 @@ from app.routers import (
 validate_security_config()
 Base.metadata.create_all(bind=engine)
 
-app = FastAPI(title="Smart Complaint Management System")
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    thread_limit = os.getenv("APP_THREADPOOL_TOKENS")
+    if thread_limit is not None:
+        anyio.to_thread.current_default_thread_limiter().total_tokens = max(
+            1, int(thread_limit)
+        )
+    yield
+
+
+app = FastAPI(title="Smart Complaint Management System", lifespan=lifespan)
 
 # Authentication and user management
 app.include_router(auth.router)
