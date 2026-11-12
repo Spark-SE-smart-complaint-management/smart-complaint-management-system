@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, EmailStr, Field, field_validator
 
 from app.models import Priority, Role, Status
 
@@ -104,6 +104,49 @@ class CommentOut(BaseModel):
     complaint_id: int
     author_id: int
     content: str
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class NotificationPreferenceIn(BaseModel):
+    channels: list[str] = Field(min_length=1, max_length=3)
+
+    @field_validator("channels")
+    @classmethod
+    def validate_channels(cls, value):
+        allowed = {"in_app", "email", "sms"}
+        if len(set(value)) != len(value):
+            raise ValueError("Notification channels must be unique")
+        if any(channel not in allowed for channel in value):
+            raise ValueError("Channels must be in_app, email, or sms")
+        return value
+
+
+class NotificationPreferenceOut(BaseModel):
+    channels: list[str]
+
+
+class NotificationOut(BaseModel):
+    id: int
+    event: str
+    message: str
+    channel: str
+    delivery_status: str
+    is_read: bool
+    created_at: datetime
+
+    model_config = {"from_attributes": True}
+
+
+class NotificationDeliveryOut(BaseModel):
+    id: int
+    notification_id: int
+    channel: str
+    delivery_status: str
+    attempts: int
+    last_error: str | None
+    next_attempt_at: datetime | None
     created_at: datetime
 
     model_config = {"from_attributes": True}

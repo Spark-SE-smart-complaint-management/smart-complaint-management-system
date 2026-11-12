@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
@@ -9,14 +9,14 @@ from app.deps import get_current_user
 from app.models import Category, Complaint, Role, User
 from app.schemas import ComplaintCreateIn, ComplaintOut
 from app.services.audit import log_action
-
+from app.services.notify import dispatch_pending, notify
 
 router = APIRouter(prefix="/complaints", tags=["complaints"])
 
 
 def generate_reference_id(db: Session) -> str:
     """Generate the next complaint reference ID for the current year."""
-    year = datetime.now(timezone.utc).year
+    year = datetime.now(UTC).year
     prefix = f"CMP-{year}-"
 
     last_complaint = (
@@ -119,8 +119,17 @@ def create_complaint(
                 trigger_type="Manual",
             )
 
+            notify(
+                db,
+                user.id,
+                "COMPLAINT_SUBMITTED",
+                f"Complaint {complaint.reference_id} has been received.",
+                idempotency_key=f"complaint:{complaint.id}:submitted",
+            )
+
             db.commit()
             db.refresh(complaint)
+            dispatch_pending(db, user_id=user.id)
 
             return complaint
 

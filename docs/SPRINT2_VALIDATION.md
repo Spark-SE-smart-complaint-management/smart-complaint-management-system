@@ -1,0 +1,18 @@
+# Sprint 2 validation and known gaps
+
+## Checks included
+
+- `backend/tests/test_reports.py`: dashboard counts, filters, resolution/SLA metrics, CSV formula safety, PDF output, and export limits.
+- `backend/tests/test_notifications.py`: channel preferences, user-scoped inbox, notification idempotency, provider failure tracking, retry, and admin delivery visibility.
+- `backend/tests/test_sprint2_integration.py`: citizen submission through triage, assignment, status changes, notifications, reopening, and reporting.
+- `backend/scripts/load_test.py`: configurable concurrent health/dashboard/inbox reads and complaint submissions; reports maximum and p95 latency against the issue's 3-second read and 2-second submission targets.
+
+Run the full backend suite with `python -m pytest backend/tests -q`; run lint with `python -m ruff check backend`. Record the environment, concurrency, complaint count, and output when running the load sample. No load numbers are claimed by this change because a stable deployment-sized benchmark environment is not available here.
+
+## Acceptance gaps and dependencies
+
+- Issue #7 (owned by `sanjayv-044`) is still open. Scheduled SLA at-risk/escalation detection, 50,000-open-complaint scheduler timing, recipient routing for escalation, and scheduler-to-notification integration need that work.
+- Issue #8 (owned by `sanjayv-044`) is still open. SLA-specific monitoring/reporting cannot be fully accepted until its reporting definitions and data are integrated with the dashboard.
+- The repository is backend-only. Keyboard navigation, focus order, contrast, screen-reader announcements, and other browser accessibility checks need the team's UI.
+- Email and SMS adapters require deployment credentials/provider endpoints. Local automated coverage verifies queuing, failure recording, and retry behavior; it does not claim delivery through a live provider.
+- The end-to-end test uses the API test client and synthetic users/data. A live multi-service demo and deployment recovery exercise should be recorded by the team before release.

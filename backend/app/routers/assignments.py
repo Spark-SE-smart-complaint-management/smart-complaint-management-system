@@ -6,13 +6,14 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import require_role
-from app.models import Category, Complaint, Notification, Role, Status, User
+from app.models import Category, Complaint, Role, Status, User
 from app.schemas_assignment import (
     AssignmentOut,
     AutoAssignmentIn,
     ComplaintAssignmentIn,
 )
 from app.services.audit import log_action
+from app.services.notify import dispatch_pending, notify
 
 router = APIRouter(prefix="/complaints", tags=["complaint-assignment"])
 admin_only = require_role(Role.ADMIN)
@@ -44,9 +45,13 @@ def _current_owner(db: Session, complaint: Complaint) -> str | None:
 
 
 def _notify_assignment(
-    db: Session, complaint: Complaint, staff: User | None, department: str | None
-) -> None:
-    """Create durable in-app notification records for the new owner(s)."""
+    db: Session,
+    complaint: Complaint,
+    staff: User | None,
+    department: str | None,
+    idempotency_key: str,
+) -> list[int]:
+    """Queue durable notifications for the new owner(s)."""
     recipients = (
         [staff]
         if staff
@@ -61,15 +66,14 @@ def _notify_assignment(
         )
     )
     for recipient in recipients:
-        db.add(
-            Notification(
-                user_id=recipient.id,
-                event="COMPLAINT_ASSIGNED",
-                message=f"Complaint {complaint.reference_id} has been assigned to you.",
-                channel="in_app",
-                delivery_status="Sent",
-            )
+        notify(
+            db,
+            recipient.id,
+            "COMPLAINT_ASSIGNED",
+            f"Complaint {complaint.reference_id} has been assigned to you.",
+            idempotency_key=idempotency_key,
         )
+    return [recipient.id for recipient in recipients]
 
 
 def _apply_assignment(
@@ -93,7 +97,7 @@ def _apply_assignment(
     complaint.assigned_department = department if staff is None else None
     complaint.status = Status.ASSIGNED
 
-    log_action(
+    assignment_log = log_action(
         db,
         action="COMPLAINT_REASSIGNED" if old_owner else "COMPLAINT_ASSIGNED",
         complaint_id=complaint.id,
@@ -103,8 +107,17 @@ def _apply_assignment(
         trigger_type="Automatic" if automatic else "Manual",
         reason=reason.strip() if reason else None,
     )
-    _notify_assignment(db, complaint, staff, department)
+    db.flush()
+    recipients = _notify_assignment(
+        db,
+        complaint,
+        staff,
+        department,
+        f"complaint:{complaint.id}:assignment:{assignment_log.id}",
+    )
     db.commit()
+    for recipient_id in recipients:
+        dispatch_pending(db, user_id=recipient_id)
     db.refresh(complaint)
     return AssignmentOut(
         complaint_id=complaint.id,
