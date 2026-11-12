@@ -51,6 +51,7 @@ async def main() -> int:
         headers = {"Authorization": f"Bearer {login.json()['access_token']}"}
         semaphore = asyncio.Semaphore(args.concurrency)
         samples: list[float] = []
+        read_samples_by_path: dict[str, list[float]] = {}
         failures: list[str] = []
 
         async def request(path: str, method: str = "GET", json_body=None):
@@ -62,6 +63,8 @@ async def main() -> int:
                     )
                     elapsed = time.perf_counter() - started
                     samples.append(elapsed)
+                    if method == "GET":
+                        read_samples_by_path.setdefault(path, []).append(elapsed)
                     if response.status_code >= 400:
                         failures.append(f"{method} {path}: HTTP {response.status_code}")
                     return response
@@ -69,15 +72,15 @@ async def main() -> int:
                     samples.append(time.perf_counter() - started)
                     failures.append(f"{method} {path}: {type(exc).__name__}: {exc}")
 
-        tasks = []
-        for _ in range(args.requests):
-            tasks.extend(
-                [
-                    request("/health"),
-                    request("/reports/dashboard"),
-                    request("/notifications?limit=20"),
-                ]
-            )
+        read_paths = (
+            "/health",
+            "/reports/dashboard",
+            "/notifications?limit=20",
+        )
+        tasks = [
+            request(read_paths[index % len(read_paths)])
+            for index in range(args.requests)
+        ]
         read_started = time.perf_counter()
         await asyncio.gather(*tasks)
         read_wall = time.perf_counter() - read_started
@@ -107,9 +110,12 @@ async def main() -> int:
 
     read_p95 = percentile(read_samples, 0.95) if read_samples else 0
     max_submit = max(submit_samples, default=0)
+    print(f"Concurrency: {args.concurrency}; total read requests: {args.requests}")
     print(
         f"Read requests: {len(read_samples)}; wall time: {read_wall:.3f}s; p95: {read_p95:.3f}s; max: {max(read_samples, default=0):.3f}s"
     )
+    for path, values in sorted(read_samples_by_path.items()):
+        print(f"{path}: p95 {percentile(values, 0.95):.3f}s; max {max(values):.3f}s")
     print(f"Complaint submissions: {len(submit_samples)}; max: {max_submit:.3f}s")
     print(f"Failures: {len(failures)}")
     for failure in failures[:20]:

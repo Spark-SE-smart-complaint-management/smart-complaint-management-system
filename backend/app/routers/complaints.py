@@ -1,4 +1,5 @@
 from datetime import UTC, datetime
+from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.exc import IntegrityError
@@ -14,30 +15,10 @@ from app.services.notify import dispatch_pending, notify
 router = APIRouter(prefix="/complaints", tags=["complaints"])
 
 
-def generate_reference_id(db: Session) -> str:
-    """Generate the next complaint reference ID for the current year."""
+def generate_reference_id(complaint_id: int) -> str:
+    """Create a stable reference from the database-assigned complaint ID."""
     year = datetime.now(UTC).year
-    prefix = f"CMP-{year}-"
-
-    last_complaint = (
-        db.query(Complaint)
-        .filter(Complaint.reference_id.like(f"{prefix}%"))
-        .order_by(Complaint.id.desc())
-        .first()
-    )
-
-    next_number = 1
-
-    if last_complaint:
-        try:
-            next_number = int(last_complaint.reference_id.split("-")[-1]) + 1
-        except ValueError:
-            raise HTTPException(
-                status_code=500,
-                detail="Unable to generate complaint reference",
-            )
-
-    return f"{prefix}{next_number:06d}"
+    return f"CMP-{year}-{complaint_id:06d}"
 
 
 @router.post(
@@ -98,7 +79,7 @@ def create_complaint(
     # Create complaint with retry for reference ID conflicts
     for attempt in range(3):
         complaint = Complaint(
-            reference_id=generate_reference_id(db),
+            reference_id=f"TMP-{uuid4().hex[:12]}",
             complainant_id=user.id,
             title=title,
             description=description,
@@ -107,6 +88,8 @@ def create_complaint(
 
         try:
             db.add(complaint)
+            db.flush()
+            complaint.reference_id = generate_reference_id(complaint.id)
             db.flush()
 
             # Record complaint creation in audit log
