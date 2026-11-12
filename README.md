@@ -25,6 +25,7 @@ The API is available at <http://127.0.0.1:8000> and interactive API documentatio
 
 ```powershell
 cd backend
+python -m ruff format --check app tests
 python -m ruff check app tests
 python -m compileall -q app tests
 python -m pytest -q
