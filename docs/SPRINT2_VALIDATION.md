@@ -7,7 +7,7 @@
 - `backend/tests/test_sprint2_integration.py`: citizen submission through triage, assignment, status changes, notifications, reopening, and reporting.
 - `backend/scripts/load_test.py`: configurable concurrent health/dashboard/inbox reads and complaint submissions; reports maximum and p95 latency against the issue's 3-second read and 2-second submission targets.
 
-Run the full backend suite with `python -m pytest backend/tests -q`; run lint with `python -m ruff check backend`. Record the environment, concurrency, complaint count, and output when running the load sample. No load numbers are claimed by this change because a stable deployment-sized benchmark environment is not available here.
+Run the full backend suite with `python -m pytest backend/tests -q`; run lint with `python -m ruff check backend`. Record the environment, concurrency, complaint count, and output when running the load sample. No latency numbers are claimed: this environment refused the local loopback socket before the load client could reach the API. Run the documented load sample from a host where the API can accept HTTP connections, and attach its output before accepting the SRS performance targets.
 
 ## Acceptance gaps and dependencies
 

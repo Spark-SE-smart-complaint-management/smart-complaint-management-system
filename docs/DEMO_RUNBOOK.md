@@ -5,13 +5,13 @@ This backend-only demo exercises complaint submission, automatic triage and assi
 ## Prepare the demo
 
 1. Follow the Python setup steps in the root README and apply `backend/migrations/007_notification_delivery.sql` after migrations 001–006.
-2. Set `DATABASE_URL` to a disposable local database, `ADMIN_PASSWORD` to a strong local-only password, and `DEMO_PASSWORD` to a strong password used only by the seed accounts. Do not reuse production credentials.
+2. Set `DATABASE_URL` to a disposable local database and `DEMO_PASSWORD` to a strong local-only password for all seed accounts. Do not reuse production credentials.
 3. Start the API from `backend` with `uvicorn app.main:app --reload`.
-4. In another terminal, run `python scripts/demo_seed.py`. The fixed demo references make repeated runs safe; they do not recreate or overwrite existing demo records.
+4. In another terminal, run `python -m scripts.demo_seed`. The fixed demo references make repeated runs safe; they do not recreate or overwrite existing demo records.
 
 ## Walk through the demo
 
-1. Sign in through `POST /auth/login` using the seeded admin, citizen, and staff accounts (`admin@demo.local`, `citizen@demo.local`, `staff@demo.local`) and the local `DEMO_PASSWORD`.
+1. Sign in through `POST /auth/login` using the seeded admin, citizen, and staff accounts (`demo.admin@example.com`, `demo.citizen@example.com`, `demo.staff@example.com`) and the local `DEMO_PASSWORD`.
 2. As the citizen, submit a complaint at `POST /complaints`. The API runs triage and assignment and adds a submission notification.
 3. As staff, update the assigned complaint through `PATCH /complaints/{id}/status` to `In Progress`, then `Resolved`. As admin, close it or exercise the reopen flow.
 4. As each account, view and mark in-app notifications using `GET /notifications`, `PATCH /notifications/{id}/read`, and `POST /notifications/read-all`. Set channel preferences with `PUT /notifications/preferences`.
