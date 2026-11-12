@@ -6,8 +6,8 @@ from sqlalchemy.orm import declarative_base, sessionmaker
 from app.config import DATABASE_URL
 
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
-DATABASE_POOL_SIZE = max(1, int(os.getenv("DATABASE_POOL_SIZE", "40")))
-DATABASE_MAX_OVERFLOW = max(0, int(os.getenv("DATABASE_MAX_OVERFLOW", "20")))
+DATABASE_POOL_SIZE = max(1, int(os.getenv("DATABASE_POOL_SIZE", "15")))
+DATABASE_MAX_OVERFLOW = max(0, int(os.getenv("DATABASE_MAX_OVERFLOW", "5")))
 pool_options = {}
 if DATABASE_URL not in {"sqlite://", "sqlite:///:memory:"}:
     pool_options = {
