@@ -1,4 +1,3 @@
-
 from datetime import datetime, timedelta, timezone
 
 from app.models import AuditLog, Complaint, Role, Status, User
@@ -9,6 +8,7 @@ from app.services.audit import log_action
 # --------------------------------------------------
 # Test helpers
 # --------------------------------------------------
+
 
 def make_user(db, email, role=Role.COMPLAINANT):
     user = User(
@@ -32,9 +32,7 @@ def auth_header(client, email):
         },
     )
     assert response.status_code == 200
-    return {
-        "Authorization": f"Bearer {response.json()['access_token']}"
-    }
+    return {"Authorization": f"Bearer {response.json()['access_token']}"}
 
 
 def create_complaint(db, complainant, assignee=None, status=Status.NEW):
@@ -42,10 +40,7 @@ def create_complaint(db, complainant, assignee=None, status=Status.NEW):
         reference_id="CMP-2026-000123",
         complainant_id=complainant.id,
         title="Water supply issue",
-        description=(
-            "There has been no water supply in our area "
-            "for several days."
-        ),
+        description=("There has been no water supply in our area for several days."),
         status=status,
         assignee_id=assignee.id if assignee else None,
     )
@@ -107,6 +102,7 @@ def close_again(db, complaint, staff):
 # Status transition tests
 # --------------------------------------------------
 
+
 def test_assigned_staff_can_update_status(client, db):
     citizen = make_user(db, "citizen1@example.com")
     staff = make_user(db, "staff1@example.com", Role.STAFF)
@@ -128,12 +124,8 @@ def test_assigned_staff_can_update_status(client, db):
 
 def test_unassigned_staff_cannot_update_status(client, db):
     citizen = make_user(db, "citizen2@example.com")
-    assigned_staff = make_user(
-        db, "staff2@example.com", Role.STAFF
-    )
-    other_staff = make_user(
-        db, "staff3@example.com", Role.STAFF
-    )
+    assigned_staff = make_user(db, "staff2@example.com", Role.STAFF)
+    other_staff = make_user(db, "staff3@example.com", Role.STAFF)
 
     complaint = create_complaint(db, citizen, assigned_staff)
 
@@ -165,6 +157,7 @@ def test_invalid_status_transition_is_rejected(client, db):
 # History visibility tests
 # --------------------------------------------------
 
+
 def test_complainant_can_view_own_history(client, db):
     citizen = make_user(db, "citizen5@example.com")
     staff = make_user(db, "staff5@example.com", Role.STAFF)
@@ -192,9 +185,7 @@ def test_complainant_can_view_own_history(client, db):
     assert response.json()[0]["to_value"] == "Assigned"
 
 
-def test_complainant_cannot_view_another_complaints_history(
-    client, db
-):
+def test_complainant_cannot_view_another_complaints_history(client, db):
     citizen1 = make_user(db, "citizen6@example.com")
     citizen2 = make_user(db, "citizen7@example.com")
     staff = make_user(db, "staff6@example.com", Role.STAFF)
@@ -213,20 +204,17 @@ def test_complainant_cannot_view_another_complaints_history(
 # First reopening tests
 # --------------------------------------------------
 
+
 def test_complainant_can_reopen_within_grace_period(client, db):
     citizen = make_user(db, "citizen8@example.com")
     staff = make_user(db, "staff8@example.com", Role.STAFF)
 
-    complaint = create_complaint(
-        db, citizen, staff, Status.CLOSED
-    )
+    complaint = create_complaint(db, citizen, staff, Status.CLOSED)
     create_closure_log(db, complaint, staff)
 
     response = client.post(
         f"/complaints/{complaint.id}/reopen",
-        params={
-            "justification": "The issue has started again."
-        },
+        params={"justification": "The issue has started again."},
         headers=auth_header(client, citizen.email),
     )
 
@@ -238,18 +226,14 @@ def test_reopening_after_grace_period_is_rejected(client, db):
     citizen = make_user(db, "citizen9@example.com")
     staff = make_user(db, "staff9@example.com", Role.STAFF)
 
-    complaint = create_complaint(
-        db, citizen, staff, Status.CLOSED
-    )
+    complaint = create_complaint(db, citizen, staff, Status.CLOSED)
 
     old_closure = datetime.now(timezone.utc) - timedelta(days=8)
     create_closure_log(db, complaint, staff, old_closure)
 
     response = client.post(
         f"/complaints/{complaint.id}/reopen",
-        params={
-            "justification": "The issue has started again."
-        },
+        params={"justification": "The issue has started again."},
         headers=auth_header(client, citizen.email),
     )
 
@@ -260,13 +244,12 @@ def test_reopening_after_grace_period_is_rejected(client, db):
 # Administrator approval tests
 # --------------------------------------------------
 
+
 def test_second_reopen_requires_admin_approval(client, db):
     citizen = make_user(db, "citizen10@example.com")
     staff = make_user(db, "staff10@example.com", Role.STAFF)
 
-    complaint = create_complaint(
-        db, citizen, staff, Status.CLOSED
-    )
+    complaint = create_complaint(db, citizen, staff, Status.CLOSED)
     create_closure_log(db, complaint, staff)
 
     citizen_headers = auth_header(client, citizen.email)
@@ -274,9 +257,7 @@ def test_second_reopen_requires_admin_approval(client, db):
     # First reopening is directly allowed.
     first_response = client.post(
         f"/complaints/{complaint.id}/reopen",
-        params={
-            "justification": "The issue has started again."
-        },
+        params={"justification": "The issue has started again."},
         headers=citizen_headers,
     )
 
@@ -288,9 +269,7 @@ def test_second_reopen_requires_admin_approval(client, db):
     # Second reopening must wait for administrator approval.
     second_response = client.post(
         f"/complaints/{complaint.id}/reopen",
-        params={
-            "justification": "The same issue has returned again."
-        },
+        params={"justification": "The same issue has returned again."},
         headers=citizen_headers,
     )
 
@@ -307,9 +286,7 @@ def test_admin_can_approve_second_reopen_request(client, db):
     staff = make_user(db, "staff11@example.com", Role.STAFF)
     admin = make_user(db, "admin11@example.com", Role.ADMIN)
 
-    complaint = create_complaint(
-        db, citizen, staff, Status.CLOSED
-    )
+    complaint = create_complaint(db, citizen, staff, Status.CLOSED)
     create_closure_log(db, complaint, staff)
 
     citizen_headers = auth_header(client, citizen.email)
@@ -317,9 +294,7 @@ def test_admin_can_approve_second_reopen_request(client, db):
     # First reopening.
     first_response = client.post(
         f"/complaints/{complaint.id}/reopen",
-        params={
-            "justification": "The issue has started again."
-        },
+        params={"justification": "The issue has started again."},
         headers=citizen_headers,
     )
     assert first_response.status_code == 200
@@ -329,9 +304,7 @@ def test_admin_can_approve_second_reopen_request(client, db):
 
     second_response = client.post(
         f"/complaints/{complaint.id}/reopen",
-        params={
-            "justification": "The problem has returned again."
-        },
+        params={"justification": "The problem has returned again."},
         headers=citizen_headers,
     )
     assert second_response.status_code == 202
@@ -353,9 +326,7 @@ def test_staff_cannot_approve_reopen_request(client, db):
     citizen = make_user(db, "citizen12@example.com")
     staff = make_user(db, "staff12@example.com", Role.STAFF)
 
-    complaint = create_complaint(
-        db, citizen, staff, Status.CLOSED
-    )
+    complaint = create_complaint(db, citizen, staff, Status.CLOSED)
 
     response = client.post(
         f"/complaints/{complaint.id}/reopen/approve",
@@ -369,9 +340,7 @@ def test_admin_cannot_approve_without_pending_request(client, db):
     citizen = make_user(db, "citizen13@example.com")
     admin = make_user(db, "admin13@example.com", Role.ADMIN)
 
-    complaint = create_complaint(
-        db, citizen, status=Status.CLOSED
-    )
+    complaint = create_complaint(db, citizen, status=Status.CLOSED)
 
     response = client.post(
         f"/complaints/{complaint.id}/reopen/approve",

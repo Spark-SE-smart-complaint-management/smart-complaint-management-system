@@ -2,7 +2,7 @@
 
 ## Pull request checks
 
-`.github/workflows/backend-tests.yml` installs pinned backend dependencies on Python 3.11, runs Ruff lint, compiles backend and test modules, and runs the full pytest suite. It triggers for pull requests targeting `main` and pushes to `main` or `feature/**`. A failed step blocks the workflow and exposes its log in Actions.
+`.github/workflows/backend-tests.yml` installs pinned backend dependencies on Python 3.11, checks formatting with `ruff format --check app tests`, runs Ruff lint, compiles backend and test modules, and runs the full pytest suite. It triggers for pull requests targeting `main` and pushes to `main` or `feature/**`. A failed step blocks the workflow and exposes its log in Actions.
 
 ### Organization admin setup
 

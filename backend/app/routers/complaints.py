@@ -1,4 +1,3 @@
-
 from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -31,9 +30,7 @@ def generate_reference_id(db: Session) -> str:
 
     if last_complaint:
         try:
-            next_number = (
-                int(last_complaint.reference_id.split("-")[-1]) + 1
-            )
+            next_number = int(last_complaint.reference_id.split("-")[-1]) + 1
         except ValueError:
             raise HTTPException(
                 status_code=500,
@@ -134,8 +131,7 @@ def create_complaint(
                 raise HTTPException(
                     status_code=503,
                     detail=(
-                        "Could not generate a unique complaint reference. "
-                        "Please retry."
+                        "Could not generate a unique complaint reference. Please retry."
                     ),
                 )
 
@@ -154,10 +150,7 @@ def can_view_complaint(
 ) -> bool:
     """Check whether a user can access a complaint."""
 
-    return (
-        user.role in (Role.STAFF, Role.ADMIN)
-        or complaint.complainant_id == user.id
-    )
+    return user.role in (Role.STAFF, Role.ADMIN) or complaint.complainant_id == user.id
 
 
 @router.get(
@@ -170,19 +163,13 @@ def list_complaints(
 ):
     """List complaints visible to the logged-in user."""
 
-    query = db.query(Complaint).filter(
-        Complaint.is_archived.is_(False)
-    )
+    query = db.query(Complaint).filter(Complaint.is_archived.is_(False))
 
     # Citizens can only list their own complaints
     if user.role == Role.COMPLAINANT:
-        query = query.filter(
-            Complaint.complainant_id == user.id
-        )
+        query = query.filter(Complaint.complainant_id == user.id)
 
-    return query.order_by(
-        Complaint.created_at.desc()
-    ).all()
+    return query.order_by(Complaint.created_at.desc()).all()
 
 
 @router.get(

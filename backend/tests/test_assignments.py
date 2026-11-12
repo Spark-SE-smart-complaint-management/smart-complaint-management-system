@@ -38,8 +38,17 @@ def test_admin_assigns_complaint_to_staff(client, db):
     assert response.json()["status"] == "Assigned"
     db.refresh(complaint)
     assert complaint.assignee_id == staff.id
-    assert db.query(Notification).filter_by(user_id=staff.id, event="COMPLAINT_ASSIGNED").count() == 1
-    log = db.query(AuditLog).filter_by(complaint_id=complaint.id, action="COMPLAINT_ASSIGNED").one()
+    assert (
+        db.query(Notification)
+        .filter_by(user_id=staff.id, event="COMPLAINT_ASSIGNED")
+        .count()
+        == 1
+    )
+    log = (
+        db.query(AuditLog)
+        .filter_by(complaint_id=complaint.id, action="COMPLAINT_ASSIGNED")
+        .one()
+    )
     assert log.to_value == f"user:{staff.id}"
 
 
@@ -59,10 +68,15 @@ def test_admin_assigns_complaint_to_department(client, db):
     assert response.status_code == 200
     assert response.json()["assigned_department"] == "Water"
     assert response.json()["assignee_id"] is None
-    assert db.query(Notification).filter(
-        Notification.user_id.in_([first.id, second.id]),
-        Notification.event == "COMPLAINT_ASSIGNED",
-    ).count() == 2
+    assert (
+        db.query(Notification)
+        .filter(
+            Notification.user_id.in_([first.id, second.id]),
+            Notification.event == "COMPLAINT_ASSIGNED",
+        )
+        .count()
+        == 2
+    )
 
 
 def test_reassignment_requires_reason_and_records_old_and_new_owner(client, db):
@@ -70,7 +84,9 @@ def test_reassignment_requires_reason_and_records_old_and_new_owner(client, db):
     citizen = make_user(db, "reason-citizen@example.com")
     first = make_user(db, "reason-staff1@example.com", Role.STAFF, department="Water")
     second = make_user(db, "reason-staff2@example.com", Role.STAFF, department="Water")
-    complaint = make_complaint(db, citizen, assignee_id=first.id, status=Status.ASSIGNED)
+    complaint = make_complaint(
+        db, citizen, assignee_id=first.id, status=Status.ASSIGNED
+    )
 
     rejected = client.post(
         f"/complaints/{complaint.id}/assign",
@@ -85,7 +101,11 @@ def test_reassignment_requires_reason_and_records_old_and_new_owner(client, db):
         headers=headers,
     )
     assert accepted.status_code == 200
-    log = db.query(AuditLog).filter_by(complaint_id=complaint.id, action="COMPLAINT_REASSIGNED").one()
+    log = (
+        db.query(AuditLog)
+        .filter_by(complaint_id=complaint.id, action="COMPLAINT_REASSIGNED")
+        .one()
+    )
     assert log.from_value == f"user:{first.id}"
     assert log.to_value == f"user:{second.id}"
     assert log.reason == "Original staff member is unavailable."
@@ -104,11 +124,17 @@ def test_auto_assignment_chooses_least_loaded_staff_in_category_department(clien
     make_complaint(db, citizen, assignee_id=high_load.id, status=Status.IN_PROGRESS)
     target = make_complaint(db, citizen, category_id=category.id)
 
-    response = client.post(f"/complaints/{target.id}/auto-assign", json={}, headers=headers)
+    response = client.post(
+        f"/complaints/{target.id}/auto-assign", json={}, headers=headers
+    )
 
     assert response.status_code == 200
     assert response.json()["assignee_id"] == low_load.id
-    log = db.query(AuditLog).filter_by(complaint_id=target.id, action="COMPLAINT_ASSIGNED").one()
+    log = (
+        db.query(AuditLog)
+        .filter_by(complaint_id=target.id, action="COMPLAINT_ASSIGNED")
+        .one()
+    )
     assert log.trigger_type == "Automatic"
 
 
@@ -122,7 +148,9 @@ def test_auto_assignment_breaks_ties_by_user_id(client, db):
     db.commit()
     target = make_complaint(db, citizen, category_id=category.id)
 
-    response = client.post(f"/complaints/{target.id}/auto-assign", json={}, headers=headers)
+    response = client.post(
+        f"/complaints/{target.id}/auto-assign", json={}, headers=headers
+    )
 
     assert response.status_code == 200
     assert response.json()["assignee_id"] == first.id
@@ -145,7 +173,13 @@ def test_non_admin_cannot_assign_complaints(client, db):
 def test_assign_rejects_inactive_or_non_staff_user(client, db):
     headers = admin_headers(client, db)
     citizen = make_user(db, "invalid-citizen@example.com")
-    inactive = make_user(db, "inactive-staff@example.com", Role.STAFF, department="Water", is_active=False)
+    inactive = make_user(
+        db,
+        "inactive-staff@example.com",
+        Role.STAFF,
+        department="Water",
+        is_active=False,
+    )
     complaint = make_complaint(db, citizen)
 
     response = client.post(

@@ -1,4 +1,3 @@
-
 from pathlib import Path
 
 from fastapi import (
@@ -73,9 +72,7 @@ async def upload_attachments(
         )
 
     existing_count = (
-        db.query(Attachment)
-        .filter(Attachment.complaint_id == complaint.id)
-        .count()
+        db.query(Attachment).filter(Attachment.complaint_id == complaint.id).count()
     )
 
     if existing_count + len(files) > MAX_ATTACHMENTS_PER_COMPLAINT:
@@ -111,12 +108,14 @@ async def upload_attachments(
                 trigger_type="Manual",
             )
 
-            uploaded_attachments.append({
-                "id": attachment.id,
-                "original_filename": attachment.original_filename,
-                "content_type": attachment.content_type,
-                "file_size": attachment.file_size,
-            })
+            uploaded_attachments.append(
+                {
+                    "id": attachment.id,
+                    "original_filename": attachment.original_filename,
+                    "content_type": attachment.content_type,
+                    "file_size": attachment.file_size,
+                }
+            )
 
         db.commit()
 

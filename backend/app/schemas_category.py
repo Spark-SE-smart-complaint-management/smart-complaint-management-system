@@ -1,4 +1,5 @@
 """Schemas for issue #4 (categories, priority, SLA policy). Kept separate from schemas.py to avoid merge conflicts."""
+
 from datetime import datetime
 
 from pydantic import BaseModel, Field

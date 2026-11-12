@@ -1,4 +1,3 @@
-
 from app.models import Complaint, Role
 from app.security import hash_password
 
@@ -131,9 +130,11 @@ def test_complaint_persistence(client, db):
 
     assert response.status_code == 201
 
-    saved = db.query(Complaint).filter(
-        Complaint.reference_id == response.json()["reference_id"]
-    ).first()
+    saved = (
+        db.query(Complaint)
+        .filter(Complaint.reference_id == response.json()["reference_id"])
+        .first()
+    )
 
     assert saved is not None
     assert saved.complainant_id == user.id

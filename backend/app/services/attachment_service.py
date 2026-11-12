@@ -1,4 +1,3 @@
-
 import uuid
 from pathlib import Path
 
@@ -54,14 +53,8 @@ async def save_attachment(upload: UploadFile) -> dict:
     # Check file signatures instead of trusting the supplied MIME type.
     valid_signature = (
         (extension == ".pdf" and content.startswith(b"%PDF-"))
-        or (
-            extension in {".jpg", ".jpeg"}
-            and content.startswith(b"\xff\xd8\xff")
-        )
-        or (
-            extension == ".png"
-            and content.startswith(b"\x89PNG\r\n\x1a\n")
-        )
+        or (extension in {".jpg", ".jpeg"} and content.startswith(b"\xff\xd8\xff"))
+        or (extension == ".png" and content.startswith(b"\x89PNG\r\n\x1a\n"))
     )
 
     if not valid_signature:

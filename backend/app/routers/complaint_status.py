@@ -1,4 +1,3 @@
-
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -112,6 +111,7 @@ def _count_previous_reopens(db: Session, complaint_id: int) -> int:
 # Staff/Admin: update complaint status
 # --------------------------------------------------
 
+
 @router.patch("/{complaint_id}/status")
 def update_complaint_status(
     complaint_id: int,
@@ -121,10 +121,7 @@ def update_complaint_status(
 ):
     complaint = _get_complaint(db, complaint_id)
 
-    if (
-        user.role == Role.STAFF
-        and complaint.assignee_id != user.id
-    ):
+    if user.role == Role.STAFF and complaint.assignee_id != user.id:
         raise HTTPException(
             403,
             "Only assigned staff or an administrator can change this status",
@@ -136,9 +133,7 @@ def update_complaint_status(
             "Use the complainant reopening workflow instead",
         )
 
-    if data.status not in VALID_TRANSITIONS.get(
-        complaint.status, set()
-    ):
+    if data.status not in VALID_TRANSITIONS.get(complaint.status, set()):
         raise HTTPException(
             409,
             f"Invalid status transition: {complaint.status.value} "
@@ -174,6 +169,7 @@ def update_complaint_status(
 # View complaint status history
 # --------------------------------------------------
 
+
 @router.get(
     "/{complaint_id}/history",
     response_model=list[ComplaintHistoryOut],
@@ -185,19 +181,13 @@ def get_complaint_history(
 ):
     complaint = _get_complaint(db, complaint_id)
 
-    if (
-        user.role == Role.COMPLAINANT
-        and complaint.complainant_id != user.id
-    ):
+    if user.role == Role.COMPLAINANT and complaint.complainant_id != user.id:
         raise HTTPException(
             403,
             "You can only view your own complaint history",
         )
 
-    if (
-        user.role == Role.STAFF
-        and complaint.assignee_id != user.id
-    ):
+    if user.role == Role.STAFF and complaint.assignee_id != user.id:
         raise HTTPException(
             403,
             "You can only view history of complaints assigned to you",
@@ -207,7 +197,9 @@ def get_complaint_history(
         db.query(AuditLog)
         .filter(
             AuditLog.complaint_id == complaint.id,
-            AuditLog.action.in_(["STATUS_CHANGE", "COMPLAINT_ASSIGNED", "COMPLAINT_REASSIGNED"]),
+            AuditLog.action.in_(
+                ["STATUS_CHANGE", "COMPLAINT_ASSIGNED", "COMPLAINT_REASSIGNED"]
+            ),
         )
         .order_by(AuditLog.timestamp.asc(), AuditLog.id.asc())
         .all()
@@ -217,6 +209,7 @@ def get_complaint_history(
 # --------------------------------------------------
 # Complainant: request complaint reopening
 # --------------------------------------------------
+
 
 @router.post("/{complaint_id}/reopen")
 def reopen_complaint(
@@ -251,9 +244,7 @@ def reopen_complaint(
 
     _check_grace_period(db, complaint)
 
-    previous_reopens = _count_previous_reopens(
-        db, complaint.id
-    )
+    previous_reopens = _count_previous_reopens(db, complaint.id)
 
     # A later reopening requires Administrator approval.
     if previous_reopens >= 1:
@@ -322,6 +313,7 @@ def reopen_complaint(
 # --------------------------------------------------
 # Administrator: approve subsequent reopening
 # --------------------------------------------------
+
 
 @router.post("/{complaint_id}/reopen/approve")
 def approve_reopen_request(

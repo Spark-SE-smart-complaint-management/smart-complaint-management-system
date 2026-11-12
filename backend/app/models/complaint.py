@@ -1,6 +1,15 @@
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, Enum, ForeignKey, Integer, String, Text
+from sqlalchemy import (
+    Boolean,
+    Column,
+    DateTime,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    Text,
+)
 
 from app.database import Base
 from app.models.enums import Priority, SLAStatus, Status
@@ -8,6 +17,7 @@ from app.models.enums import Priority, SLAStatus, Status
 
 class Complaint(Base):
     """Fields follow SRS Appendix B.1, plus SLA and assignment bookkeeping."""
+
     __tablename__ = "complaints"
 
     id = Column(Integer, primary_key=True)
@@ -22,7 +32,9 @@ class Complaint(Base):
     # Department-level assignment is mutually exclusive with assignee_id.
     assigned_department = Column(String(50), nullable=True, index=True)
     attachment_urls = Column(Text, nullable=True)
-    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(timezone.utc))
+    created_at = Column(
+        DateTime, nullable=False, default=lambda: datetime.now(timezone.utc)
+    )
 
     # SLA / escalation bookkeeping (used by issues #4, #7, #8)
     sla_deadline = Column(DateTime, nullable=True)

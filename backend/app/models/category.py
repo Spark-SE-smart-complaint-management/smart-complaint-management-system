@@ -1,4 +1,12 @@
-from sqlalchemy import Boolean, Column, Enum, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import (
+    Boolean,
+    Column,
+    Enum,
+    ForeignKey,
+    Integer,
+    String,
+    UniqueConstraint,
+)
 
 from app.database import Base
 from app.models.enums import Priority
@@ -6,6 +14,7 @@ from app.models.enums import Priority
 
 class Category(Base):
     """REQ-12: configurable by the Administrator."""
+
     __tablename__ = "categories"
 
     id = Column(Integer, primary_key=True)
@@ -16,6 +25,7 @@ class Category(Base):
 
 class SLAPolicy(Base):
     """REQ-15: SLA duration per category + priority (data-driven, not hard-coded)."""
+
     __tablename__ = "sla_policies"
     __table_args__ = (UniqueConstraint("category_id", "priority"),)
 

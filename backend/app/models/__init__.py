@@ -1,4 +1,3 @@
-
 from app.models.audit_log import AuditLog
 from app.models.category import Category, SLAPolicy
 from app.models.complaint import Complaint

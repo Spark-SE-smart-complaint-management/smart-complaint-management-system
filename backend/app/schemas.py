@@ -47,6 +47,7 @@ class AdminUpdateUserIn(BaseModel):
 
 # Issue #3: Complaint submission
 
+
 class ComplaintCreateIn(BaseModel):
     title: str = Field(min_length=1, max_length=100)
     description: str = Field(min_length=1, max_length=2000)
@@ -71,6 +72,7 @@ class ComplaintOut(BaseModel):
 
 # Issue #5: Complaint status and history
 
+
 class ComplaintStatusUpdateIn(BaseModel):
     status: Status
     reason: str | None = Field(default=None, max_length=500)
@@ -91,6 +93,7 @@ class ComplaintHistoryOut(BaseModel):
 
 
 # Issue #10: Complaint comments
+
 
 class CommentCreateIn(BaseModel):
     content: str = Field(min_length=1, max_length=5000)
