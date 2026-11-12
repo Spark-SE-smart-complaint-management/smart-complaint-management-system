@@ -28,9 +28,7 @@ class Notification(Base):
     )  # in_app / email / sms
     delivery_status = Column(String(15), nullable=False, default="Sent")
     is_read = Column(Boolean, nullable=False, default=False)
-    created_at = Column(
-        DateTime, nullable=False, default=lambda: datetime.now(UTC)
-    )
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
 
 
 class NotificationPreference(Base):
@@ -43,9 +41,7 @@ class NotificationPreference(Base):
         Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True
     )
     channels = Column(Text, nullable=False, default='["in_app"]')
-    updated_at = Column(
-        DateTime, nullable=False, default=lambda: datetime.now(UTC)
-    )
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
 
 
 class NotificationDelivery(Base):
@@ -66,9 +62,5 @@ class NotificationDelivery(Base):
     attempts = Column(Integer, nullable=False, default=0)
     last_error = Column(Text, nullable=True)
     next_attempt_at = Column(DateTime, nullable=True)
-    created_at = Column(
-        DateTime, nullable=False, default=lambda: datetime.now(UTC)
-    )
-    updated_at = Column(
-        DateTime, nullable=False, default=lambda: datetime.now(UTC)
-    )
+    created_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))
+    updated_at = Column(DateTime, nullable=False, default=lambda: datetime.now(UTC))

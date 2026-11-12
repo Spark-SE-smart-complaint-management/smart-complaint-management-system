@@ -59,9 +59,9 @@ def test_preferences_delivery_log_retry_and_idempotency(client, db, monkeypatch)
         .one()
     )
     assert "temporary mail outage" in email_delivery.last_error
-    email_delivery.next_attempt_at = datetime.now(UTC).replace(
-        tzinfo=None
-    ) - timedelta(seconds=1)
+    email_delivery.next_attempt_at = datetime.now(UTC).replace(tzinfo=None) - timedelta(
+        seconds=1
+    )
     db.commit()
 
     monkeypatch.setitem(
