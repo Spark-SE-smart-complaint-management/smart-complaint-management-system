@@ -12,7 +12,9 @@ from app.security import hash_password
 
 @pytest.fixture()
 def db():
-    engine = create_engine("sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    engine = create_engine(
+        "sqlite://", connect_args={"check_same_thread": False}, poolclass=StaticPool
+    )
     Base.metadata.create_all(bind=engine)
     session = sessionmaker(bind=engine)()
     yield session
@@ -27,12 +29,16 @@ def client(db):
 
 
 def make_user(db, email, role=Role.COMPLAINANT, password="ValidStrong@123", **kw):
-    u = User(name="Test", email=email, password_hash=hash_password(password), role=role, **kw)
+    u = User(
+        name="Test", email=email, password_hash=hash_password(password), role=role, **kw
+    )
     db.add(u)
     db.commit()
     return u
 
 
 def auth_header(client, email, password="ValidStrong@123"):
-    token = client.post("/auth/login", json={"email": email, "password": password}).json()["access_token"]
+    token = client.post(
+        "/auth/login", json={"email": email, "password": password}
+    ).json()["access_token"]
     return {"Authorization": f"Bearer {token}"}

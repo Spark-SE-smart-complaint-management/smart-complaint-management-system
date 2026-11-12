@@ -22,14 +22,18 @@ def get_current_user(
         raise HTTPException(status.HTTP_401_UNAUTHORIZED, "Invalid or expired token")
     user = db.get(User, int(payload["sub"]))
     if user is None or not user.is_active:
-        raise HTTPException(status.HTTP_401_UNAUTHORIZED, "User not found or deactivated")
+        raise HTTPException(
+            status.HTTP_401_UNAUTHORIZED, "User not found or deactivated"
+        )
     return user
 
 
 def require_role(*roles: Role):
     """REQ-4: use as Depends(require_role(Role.ADMIN)) on every protected endpoint."""
+
     def checker(user: User = Depends(get_current_user)) -> User:
         if user.role not in roles:
             raise HTTPException(status.HTTP_403_FORBIDDEN, "Insufficient permissions")
         return user
+
     return checker

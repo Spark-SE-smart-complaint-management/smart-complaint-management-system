@@ -1,4 +1,5 @@
 """Complaint assignment: REQ-22 to REQ-25."""
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -6,7 +7,11 @@ from sqlalchemy.orm import Session
 from app.database import get_db
 from app.deps import require_role
 from app.models import Category, Complaint, Notification, Role, Status, User
-from app.schemas_assignment import AssignmentOut, AutoAssignmentIn, ComplaintAssignmentIn
+from app.schemas_assignment import (
+    AssignmentOut,
+    AutoAssignmentIn,
+    ComplaintAssignmentIn,
+)
 from app.services.audit import log_action
 
 router = APIRouter(prefix="/complaints", tags=["complaint-assignment"])
@@ -38,23 +43,33 @@ def _current_owner(db: Session, complaint: Complaint) -> str | None:
     return None
 
 
-def _notify_assignment(db: Session, complaint: Complaint, staff: User | None, department: str | None) -> None:
+def _notify_assignment(
+    db: Session, complaint: Complaint, staff: User | None, department: str | None
+) -> None:
     """Create durable in-app notification records for the new owner(s)."""
-    recipients = [staff] if staff else (
-        db.query(User).filter(
-            User.role == Role.STAFF,
-            User.is_active.is_(True),
-            func.lower(User.department) == department.lower(),
-        ).all()
+    recipients = (
+        [staff]
+        if staff
+        else (
+            db.query(User)
+            .filter(
+                User.role == Role.STAFF,
+                User.is_active.is_(True),
+                func.lower(User.department) == department.lower(),
+            )
+            .all()
+        )
     )
     for recipient in recipients:
-        db.add(Notification(
-            user_id=recipient.id,
-            event="COMPLAINT_ASSIGNED",
-            message=f"Complaint {complaint.reference_id} has been assigned to you.",
-            channel="in_app",
-            delivery_status="Sent",
-        ))
+        db.add(
+            Notification(
+                user_id=recipient.id,
+                event="COMPLAINT_ASSIGNED",
+                message=f"Complaint {complaint.reference_id} has been assigned to you.",
+                channel="in_app",
+                delivery_status="Sent",
+            )
+        )
 
 
 def _apply_assignment(
@@ -113,13 +128,19 @@ def assign_complaint(
     staff = _active_staff(db, data.staff_id) if data.staff_id is not None else None
     department = data.department.strip() if data.department else None
     if department:
-        exists = db.query(User.id).filter(
-            User.role == Role.STAFF,
-            User.is_active.is_(True),
-            func.lower(User.department) == department.lower(),
-        ).first()
+        exists = (
+            db.query(User.id)
+            .filter(
+                User.role == Role.STAFF,
+                User.is_active.is_(True),
+                func.lower(User.department) == department.lower(),
+            )
+            .first()
+        )
         if not exists:
-            raise HTTPException(422, "No active staff members belong to this department")
+            raise HTTPException(
+                422, "No active staff members belong to this department"
+            )
     return _apply_assignment(
         db, complaint, admin, staff=staff, department=department, reason=data.reason
     )
@@ -135,7 +156,9 @@ def auto_assign_complaint(
     """REQ-23: route by category department, then choose its least-loaded active staff."""
     complaint = _get_open_complaint(db, complaint_id)
     if complaint.category_id is None:
-        raise HTTPException(422, "Complaint must have a category before auto-assignment")
+        raise HTTPException(
+            422, "Complaint must have a category before auto-assignment"
+        )
     category = db.get(Category, complaint.category_id)
     if category is None or not category.is_active or not category.department:
         raise HTTPException(422, "Complaint category has no active department mapping")
@@ -151,7 +174,9 @@ def auto_assign_complaint(
         .all()
     )
     if not staff_rows:
-        raise HTTPException(422, "No active staff members are configured for the category department")
+        raise HTTPException(
+            422, "No active staff members are configured for the category department"
+        )
 
     # Count active assigned work (excluding resolved/closed complaints); stable
     # user-id ordering breaks ties deterministically.
@@ -166,10 +191,20 @@ def auto_assign_complaint(
         .all()
     )
     selected = min(staff_rows, key=lambda s: (workload.get(s.id, 0), s.id))
-    reason = data.reason.strip() if data.reason and data.reason.strip() else (
-        f"Automatic assignment: category '{category.name}' mapped to department '{category.department}'; "
-        f"selected least-loaded active staff member (workload={workload.get(selected.id, 0)})."
+    reason = (
+        data.reason.strip()
+        if data.reason and data.reason.strip()
+        else (
+            f"Automatic assignment: category '{category.name}' mapped to department '{category.department}'; "
+            f"selected least-loaded active staff member (workload={workload.get(selected.id, 0)})."
+        )
     )
     return _apply_assignment(
-        db, complaint, admin, staff=selected, department=None, reason=reason, automatic=True
+        db,
+        complaint,
+        admin,
+        staff=selected,
+        department=None,
+        reason=reason,
+        automatic=True,
     )

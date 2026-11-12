@@ -1,4 +1,3 @@
-
 import pytest
 
 from app.models import Role, User
@@ -211,9 +210,7 @@ def test_reject_attachment_larger_than_10_mb(
 ):
     complaint, headers = test_complaint
 
-    oversized_content = b"%PDF-1.4\n" + (
-        b"A" * (10 * 1024 * 1024)
-    )
+    oversized_content = b"%PDF-1.4\n" + (b"A" * (10 * 1024 * 1024))
 
     response = client.post(
         f"/complaints/{complaint['id']}/attachments",
