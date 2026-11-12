@@ -132,7 +132,139 @@ def test_admin_updates_and_deactivates_category(client, db):
     r = client.patch(
         f"/categories/{cat.id}",
         json={"is_active": False, "department": "Finance"},
-        header…1120 tokens truncated…  client.put(
+        headers=h,
+    )
+    assert r.status_code == 200
+    assert r.json()["is_active"] is False and r.json()["department"] == "Finance"
+
+
+def test_rename_to_existing_name_rejected(client, db):
+    setup_world(db)
+    make_category(db, "Billing")
+    tech = make_category(db, "Technical")
+    r = client.patch(
+        f"/categories/{tech.id}",
+        json={"name": "BILLING"},
+        headers=auth_header(client, "admin@x.com"),
+    )
+    assert r.status_code == 409
+
+
+def test_update_unknown_category_404(client, db):
+    setup_world(db)
+    r = client.patch(
+        "/categories/999",
+        json={"name": "Z"},
+        headers=auth_header(client, "admin@x.com"),
+    )
+    assert r.status_code == 404
+
+
+# ---------------- REQ-13: suggestion ----------------
+
+
+def test_suggest_billing_from_text(client, db):
+    setup_world(db)
+    make_category(db, "Billing")
+    make_category(db, "Technical")
+    r = client.post(
+        "/categories/suggest",
+        json={"text": "I was overcharged on my bill, need a refund"},
+        headers=auth_header(client, "user@x.com"),
+    )
+    assert r.status_code == 200
+    assert r.json()["category"]["name"] == "Billing"
+
+
+def test_suggest_technical_from_text(client, db):
+    setup_world(db)
+    make_category(db, "Billing")
+    make_category(db, "Technical")
+    r = client.post(
+        "/categories/suggest",
+        json={"text": "The internet connection is down"},
+        headers=auth_header(client, "user@x.com"),
+    )
+    assert r.json()["category"]["name"] == "Technical"
+
+
+def test_suggest_returns_null_when_no_match(client, db):
+    setup_world(db)
+    make_category(db, "Billing")
+    r = client.post(
+        "/categories/suggest",
+        json={"text": "Hello there"},
+        headers=auth_header(client, "user@x.com"),
+    )
+    assert r.status_code == 200 and r.json()["category"] is None
+
+
+def test_suggest_ignores_inactive_category(client, db):
+    setup_world(db)
+    make_category(db, "Billing", active=False)
+    r = client.post(
+        "/categories/suggest",
+        json={"text": "bill problem"},
+        headers=auth_header(client, "user@x.com"),
+    )
+    assert r.json()["category"] is None
+
+
+def test_suggest_does_not_change_complaint(client, db):
+    admin, staff, user = setup_world(db)
+    make_category(db, "Technical")
+    c = make_complaint(db, user)
+    r = client.get(
+        f"/complaints/{c.id}/suggested-category",
+        headers=auth_header(client, "staff@x.com"),
+    )
+    assert r.status_code == 200 and r.json()["category"]["name"] == "Technical"
+    db.refresh(c)
+    assert c.category_id is None
+
+
+def test_suggest_endpoint_needs_staff_role(client, db):
+    admin, staff, user = setup_world(db)
+    c = make_complaint(db, user)
+    r = client.get(
+        f"/complaints/{c.id}/suggested-category",
+        headers=auth_header(client, "user@x.com"),
+    )
+    assert r.status_code == 403
+
+
+# ---------------- REQ-15: SLA policy ----------------
+
+
+def test_admin_creates_then_updates_policy_same_row(client, db):
+    setup_world(db)
+    cat = make_category(db, "Technical")
+    h = auth_header(client, "admin@x.com")
+    body = {"category_id": cat.id, "priority": "High", "duration_hours": 4}
+    first = client.put("/sla-policies", json=body, headers=h)
+    assert first.status_code == 200 and first.json()["duration_hours"] == 4
+    second = client.put("/sla-policies", json={**body, "duration_hours": 6}, headers=h)
+    assert (
+        second.json()["id"] == first.json()["id"]
+        and second.json()["duration_hours"] == 6
+    )
+    assert db.query(SLAPolicy).count() == 1
+
+
+def test_policy_validation(client, db):
+    setup_world(db)
+    cat = make_category(db, "Technical")
+    h = auth_header(client, "admin@x.com")
+    assert (
+        client.put(
+            "/sla-policies",
+            json={"category_id": cat.id, "priority": "High", "duration_hours": 0},
+            headers=h,
+        ).status_code
+        == 422
+    )
+    assert (
+        client.put(
             "/sla-policies",
             json={"category_id": cat.id, "priority": "Urgent", "duration_hours": 4},
             headers=h,
