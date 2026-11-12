@@ -5,14 +5,23 @@
 - `backend/tests/test_reports.py`: dashboard counts, filters, resolution/SLA metrics, CSV formula safety, PDF output, and export limits.
 - `backend/tests/test_notifications.py`: channel preferences, user-scoped inbox, notification idempotency, provider failure tracking, retry, and admin delivery visibility.
 - `backend/tests/test_sprint2_integration.py`: citizen submission through triage, assignment, status changes, notifications, reopening, and reporting.
-- `backend/scripts/load_test.py`: configurable concurrent health/dashboard/inbox reads and complaint submissions; reports overall and per-route maximum and p95 latency against the issue's 3-second read and 2-second submission targets. CI runs 500 concurrent synthetic read journeys and five concurrent complaint submissions against an eight-worker local API process. The best observed run completed 1,500 reads with p95 3.336 s and maximum 3.928 s; it recorded no failures but missed the 3-second read target. Subsequent hosted runs varied (p95 3.880–6.321 s; maximum 4.453–7.244 s), also with no read request failures. Five submissions stayed under 0.1 s maximum. These are GitHub-hosted CI measurements, not production hardware results.
+- `backend/scripts/load_test.py`: configurable concurrent health/dashboard/inbox reads and complaint submissions; reports overall and per-route p95 and maximum latency against the 3-second read and 2-second submission targets.
+- CI runs an expected 50-client profile and a 500-client peak profile. It uses 10 API workers, 40 thread tokens per worker, and a 15-connection SQLite pool per worker.
 
-Run the full backend suite with `python -m pytest backend/tests -q`; run lint with `python -m ruff check backend`. Record the environment, concurrency, complaint count, and output when running the load sample. GitHub Actions provides a repeatable Linux-hosted 500-concurrent-user smoke sample; it is a CI reference measurement and does not replace production-like deployment testing.
+## Latest CI evidence
+
+- Formatting, lint, compile checks, and all 90 backend tests passed.
+- Expected load (50 concurrent clients, 150 reads): p95 0.310 s, maximum 0.456 s; five submissions max 0.118 s; no failures. The target check passed.
+- Peak load (500 concurrent clients, 1,500 reads): p95 3.227 s, maximum 3.871 s; five submissions max 0.095 s; no failures. The read target still fails at peak.
+- Concurrent complaint submissions previously exposed a reference-number race. References now derive from the database-assigned complaint ID, and the latest five-submission samples completed without conflicts.
+- These are GitHub-hosted CI measurements; they vary with runner capacity and do not substitute for production-like deployment testing.
+
+Run the full backend suite with `python -m pytest backend/tests -q`; run lint with `python -m ruff check backend`. To reproduce the hosted load profiles, use the commands in `.github/workflows/backend-tests.yml`.
 
 ## Acceptance gaps and dependencies
 
-- Issue #7 (owned by `sanjayv-044`) is still open. Scheduled SLA at-risk/escalation detection, 50,000-open-complaint scheduler timing, recipient routing for escalation, and scheduler-to-notification integration need that work.
-- Issue #8 (owned by `sanjayv-044`) is still open. SLA-specific monitoring/reporting cannot be fully accepted until its reporting definitions and data are integrated with the dashboard.
-- The repository is backend-only. Keyboard navigation, focus order, contrast, screen-reader announcements, and other browser accessibility checks need the team's UI.
-- Email and SMS adapters require deployment credentials/provider endpoints. Local automated coverage verifies queuing, failure recording, and retry behavior; it does not claim delivery through a live provider.
-- The end-to-end test uses the API test client and synthetic users/data. A live multi-service demo and deployment recovery exercise should be recorded by the team before release.
+- Issue #7 (owned by `sanjayv-044`) remains open. Scheduled SLA escalation, 50,000-open-complaint scheduler timing, recipient routing, and scheduler-to-notification integration depend on that work.
+- Issue #8 (owned by `sanjayv-044`) remains open. SLA-specific monitoring/reporting requires its reporting definitions and data.
+- The repository contains no browser UI. Keyboard navigation, focus order, contrast, screen-reader announcements, and other browser accessibility checks need the team's UI.
+- Email and SMS adapters require deployment credentials/provider endpoints. Automated coverage verifies queuing, failure recording, and retry behavior; it does not claim live provider delivery.
+- End-to-end tests use the API test client and synthetic data. The team still needs a live multi-service demo and deployment recovery exercise before release.
