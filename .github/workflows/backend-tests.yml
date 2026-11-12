@@ -42,7 +42,7 @@ jobs:
         run: pytest -q
       - name: Validate 500-user read and submission targets
         env:
-          APP_THREADPOOL_TOKENS: 40
+          APP_THREADPOOL_TOKENS: 50
           DATABASE_URL: sqlite:///./load-test.db
           DATABASE_POOL_SIZE: 15
           DATABASE_MAX_OVERFLOW: 5
