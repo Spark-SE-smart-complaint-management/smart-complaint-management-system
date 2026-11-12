@@ -72,15 +72,15 @@ async def main() -> int:
                     samples.append(time.perf_counter() - started)
                     failures.append(f"{method} {path}: {type(exc).__name__}: {exc}")
 
-        tasks = []
-        for _ in range(args.requests):
-            tasks.extend(
-                [
-                    request("/health"),
-                    request("/reports/dashboard"),
-                    request("/notifications?limit=20"),
-                ]
-            )
+        read_paths = (
+            "/health",
+            "/reports/dashboard",
+            "/notifications?limit=20",
+        )
+        tasks = [
+            request(read_paths[index % len(read_paths)])
+            for index in range(args.requests)
+        ]
         read_started = time.perf_counter()
         await asyncio.gather(*tasks)
         read_wall = time.perf_counter() - read_started
@@ -110,7 +110,7 @@ async def main() -> int:
 
     read_p95 = percentile(read_samples, 0.95) if read_samples else 0
     max_submit = max(submit_samples, default=0)
-    print(f"Concurrency: {args.concurrency}; requests per route: {args.requests}")
+    print(f"Concurrency: {args.concurrency}; total read requests: {args.requests}")
     print(
         f"Read requests: {len(read_samples)}; wall time: {read_wall:.3f}s; p95: {read_p95:.3f}s; max: {max(read_samples, default=0):.3f}s"
     )
