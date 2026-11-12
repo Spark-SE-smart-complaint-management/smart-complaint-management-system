@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import get_current_user, require_role
-from app.models import Category, Priority, Role, SLAPolicy, User
+from app.models import Category, Role, SLAPolicy, User
 from app.schemas_category import (
     CategoryIn, CategoryOut, CategoryUpdateIn, SLAPolicyIn, SLAPolicyOut, SuggestIn, SuggestOut,
 )
