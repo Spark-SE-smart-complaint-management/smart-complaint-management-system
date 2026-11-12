@@ -40,3 +40,26 @@ jobs:
         run: python -m compileall -q app tests
       - name: Run backend tests
         run: pytest -q
+      - name: Validate 500-user read and submission targets
+        env:
+          DATABASE_URL: sqlite:///./load-test.db
+          DEMO_PASSWORD: DemoPass!2026
+          SECRET_KEY: LocalDemoOnly-Secret-Key-For-CI-Only-2026
+          LOAD_TEST_EMAIL: demo.admin@example.com
+          LOAD_TEST_PASSWORD: DemoPass!2026
+        run: |
+          python -m scripts.demo_seed
+          uvicorn app.main:app --host 127.0.0.1 --port 8000 > /tmp/scms-load-test.log 2>&1 &
+          server_pid=$!
+          trap 'kill "$server_pid" 2>/dev/null || true' EXIT
+          for attempt in $(seq 1 30); do
+            if curl --fail --silent http://127.0.0.1:8000/health >/dev/null; then
+              break
+            fi
+            sleep 1
+          done
+          if ! curl --fail --silent http://127.0.0.1:8000/health >/dev/null; then
+            cat /tmp/scms-load-test.log
+            exit 1
+          fi
+          python scripts/load_test.py --base-url http://127.0.0.1:8000 --concurrency 500 --requests 500 --submit-count 5

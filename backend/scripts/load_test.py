@@ -107,6 +107,7 @@ async def main() -> int:
 
     read_p95 = percentile(read_samples, 0.95) if read_samples else 0
     max_submit = max(submit_samples, default=0)
+    print(f"Concurrency: {args.concurrency}; requests per route: {args.requests}")
     print(
         f"Read requests: {len(read_samples)}; wall time: {read_wall:.3f}s; p95: {read_p95:.3f}s; max: {max(read_samples, default=0):.3f}s"
     )
