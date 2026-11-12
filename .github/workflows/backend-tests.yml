@@ -44,15 +44,15 @@ jobs:
         env:
           APP_THREADPOOL_TOKENS: 40
           DATABASE_URL: sqlite:///./load-test.db
-          DATABASE_POOL_SIZE: 40
-          DATABASE_MAX_OVERFLOW: 20
+          DATABASE_POOL_SIZE: 15
+          DATABASE_MAX_OVERFLOW: 5
           DEMO_PASSWORD: DemoPass!2026
           SECRET_KEY: LocalDemoOnly-Secret-Key-For-CI-Only-2026
           LOAD_TEST_EMAIL: demo.admin@example.com
           LOAD_TEST_PASSWORD: DemoPass!2026
         run: |
           python -m scripts.demo_seed
-          uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 8 > /tmp/scms-load-test.log 2>&1 &
+          uvicorn app.main:app --host 127.0.0.1 --port 8000 --workers 10 > /tmp/scms-load-test.log 2>&1 &
           server_pid=$!
           trap 'kill "$server_pid" 2>/dev/null || true' EXIT
           for attempt in $(seq 1 30); do
