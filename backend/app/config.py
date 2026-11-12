@@ -1,9 +1,19 @@
 
 import os
+import secrets
 
 DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./scms.db")
-SECRET_KEY = os.getenv("SECRET_KEY", "change-me-in-production")
+APP_ENV = os.getenv("APP_ENV", "development").lower()
+# This fallback is only for local development. Production startup validates that
+# an operator supplied a high-entropy key through the environment.
+SECRET_KEY = os.getenv("SECRET_KEY") or (secrets.token_urlsafe(48) if APP_ENV == "development" else "")
 JWT_ALGORITHM = "HS256"
+
+
+def validate_security_config() -> None:
+    """Fail closed when production is started with unsafe auth settings."""
+    if APP_ENV == "production" and len(SECRET_KEY) < 32:
+        raise RuntimeError("Production requires SECRET_KEY with at least 32 characters")
 
 # REQ-3: token validity is configurable
 JWT_EXPIRE_MINUTES = int(os.getenv("JWT_EXPIRE_MINUTES", "60"))

@@ -1,15 +1,10 @@
-## Phase 2: Issue #4 (REQ-12 to 16) - Categorization, priority, SLA policy
-Branch: feature/4-categories-sla
+# Setup and progress index
 
-New files: app/routers/categories.py, app/routers/triage.py, app/services/sla.py,
-app/services/categorizer.py, app/schemas_category.py, tests/test_categories_sla.py
-Changed files: app/main.py (2 routers registered), app/seed.py (default categories + SLA matrix)
+Contributor setup is maintained in the root [README](../README.md). Sprint ownership, requirement mapping, security controls, CI, team workflow, branch-protection instructions, and demo handoff criteria are documented here:
 
-Decisions:
-- SLA deadline = complaint.created_at + policy hours (recomputed on change).
-- No policy or no priority/category -> deadline is null.
-- At Risk when >= 80% of SLA has elapsed (AT_RISK_FRACTION in services/sla.py); #8 can reuse classify_sla().
-- Closed complaints cannot be re-triaged (409).
-- Changing a policy does not retroactively change existing complaints.
+- [Requirements traceability matrix](REQUIREMENTS_TRACEABILITY.md)
+- [Security and privacy controls](SECURITY_AND_PRIVACY.md)
+- [CI and team workflow](CI_AND_TEAM_WORKFLOW.md)
+- [Issue #6 assignment implementation notes](issue-6-assignment.md)
 
-Status: done, 44 tests passing. Next: #6 assignment (feature/6-assignment).
+The implementation history is recorded in linked issues and pull requests. Update the traceability matrix when requirements are implemented, and attach passing CI/test evidence to the PR before marking them complete.

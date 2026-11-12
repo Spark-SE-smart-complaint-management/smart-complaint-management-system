@@ -1,7 +1,9 @@
-"""Seed admin + default categories + default SLA matrix:  python -m app.seed  (safe to re-run)"""
+"""Seed the first admin + defaults. Requires ADMIN_PASSWORD to be set."""
+import os
+
 from app.database import Base, SessionLocal, engine
 from app.models import Category, Priority, Role, SLAPolicy, User
-from app.security import hash_password
+from app.security import hash_password, validate_password_strength
 
 # name -> (department, {priority: SLA hours})
 DEFAULTS = {
@@ -14,13 +16,21 @@ DEFAULTS = {
 Base.metadata.create_all(bind=engine)
 db = SessionLocal()
 
-if not db.query(User).filter(User.email == "admin@example.com").first():
-    db.add(User(name="Admin", email="admin@example.com",
-                password_hash=hash_password("Admin@12345"), role=Role.ADMIN))
+admin_email = os.getenv("ADMIN_EMAIL", "admin@example.com").strip().lower()
+admin_password = os.getenv("ADMIN_PASSWORD")
+if not admin_password:
+    raise SystemExit("Set ADMIN_PASSWORD before running the seed command")
+password_problems = validate_password_strength(admin_password)
+if password_problems:
+    raise SystemExit("ADMIN_PASSWORD must contain " + ", ".join(password_problems))
+
+if not db.query(User).filter(User.email == admin_email).first():
+    db.add(User(name="Admin", email=admin_email,
+                password_hash=hash_password(admin_password), role=Role.ADMIN))
     db.commit()
-    print("Created admin@example.com / Admin@12345")
+    print("Created administrator account")
 else:
-    print("Admin already exists")
+    print("Administrator account already exists")
 
 for name, (dept, matrix) in DEFAULTS.items():
     cat = db.query(Category).filter(Category.name == name).first()
