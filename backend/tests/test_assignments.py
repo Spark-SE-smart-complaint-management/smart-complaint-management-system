@@ -1,4 +1,4 @@
-from app.models import AuditLog, Category, Complaint, Notification, Role, Status, User
+from app.models import AuditLog, Category, Complaint, Notification, Role, Status
 from tests.conftest import auth_header, make_user
 
 

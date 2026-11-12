@@ -1,4 +1,8 @@
+import pytest
+
 from app.models import Role, User
+from app import config
+from app.security import hash_password, validate_password_strength, verify_password
 from tests.conftest import auth_header, make_user
 
 GOOD = {"name": "Test User", "email": "testuser@example.com", "phone": "9876543210", "password": "ValidStrong@123"}
@@ -19,6 +23,21 @@ def test_register_duplicate_email(client):
 
 def test_register_weak_password(client):
     assert client.post("/auth/register", json={**GOOD, "password": "weak"}).status_code == 422
+
+
+def test_passwords_over_bcrypt_limit_are_rejected():
+    too_long = "A1!" + "x" * 70
+    assert "no more than 72 UTF-8 bytes" in validate_password_strength(too_long)
+    assert verify_password(too_long, hash_password("ValidStrong@123")) is False
+
+
+def test_production_requires_a_long_secret(monkeypatch):
+    monkeypatch.setattr(config, "APP_ENV", "production")
+    monkeypatch.setattr(config, "SECRET_KEY", "short")
+    with pytest.raises(RuntimeError, match="at least 32 characters"):
+        config.validate_security_config()
+    monkeypatch.setattr(config, "SECRET_KEY", "x" * 32)
+    config.validate_security_config()
 
 
 def test_register_invalid_email_and_blank_name(client):

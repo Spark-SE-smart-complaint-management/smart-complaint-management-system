@@ -1,6 +1,4 @@
 
-import pytest
-
 from app.models import Complaint, Role
 from app.security import hash_password
 

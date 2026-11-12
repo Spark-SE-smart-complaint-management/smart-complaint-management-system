@@ -2,6 +2,7 @@ from fastapi import FastAPI
 
 from app import models  # noqa: F401 (registers tables)
 from app.database import Base, engine
+from app.config import validate_security_config
 from app.routers import (
     attachments,
     assignments,
@@ -14,6 +15,7 @@ from app.routers import (
     users,
 )
 
+validate_security_config()
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Smart Complaint Management System")

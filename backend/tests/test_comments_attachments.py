@@ -1,9 +1,6 @@
 
-from pathlib import Path
-
 import pytest
 
-from app import models
 from app.models import Role, User
 from app.security import hash_password
 

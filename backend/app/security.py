@@ -8,7 +8,7 @@ from app.config import JWT_ALGORITHM, JWT_EXPIRE_MINUTES, SECRET_KEY
 
 
 def validate_password_strength(password: str) -> list[str]:
-    """Rule (SRS leaves it undefined): min 8 chars, upper, lower, digit, symbol."""
+    """Require a strong password within bcrypt's 72-byte input limit."""
     problems = []
     if len(password) < 8:
         problems.append("at least 8 characters")
@@ -20,6 +20,8 @@ def validate_password_strength(password: str) -> list[str]:
         problems.append("a digit")
     if not re.search(r"[^A-Za-z0-9]", password):
         problems.append("a symbol")
+    if len(password.encode("utf-8")) > 72:
+        problems.append("no more than 72 UTF-8 bytes")
     return problems
 
 
@@ -28,6 +30,8 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(password: str, password_hash: str) -> bool:
+    if len(password.encode("utf-8")) > 72:
+        return False
     return bcrypt.checkpw(password.encode(), password_hash.encode())
 
 

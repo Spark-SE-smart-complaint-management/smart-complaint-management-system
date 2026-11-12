@@ -5,7 +5,7 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.deps import require_role
-from app.models import AuditLog, Category, Complaint, Notification, Role, Status, User
+from app.models import Category, Complaint, Notification, Role, Status, User
 from app.schemas_assignment import AssignmentOut, AutoAssignmentIn, ComplaintAssignmentIn
 from app.services.audit import log_action
 

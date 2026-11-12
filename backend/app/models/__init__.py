@@ -11,6 +11,7 @@ from app.models.user import User
 
 __all__ = [
     "AuditLog",
+    "Attachment",
     "Category",
     "SLAPolicy",
     "Complaint",
