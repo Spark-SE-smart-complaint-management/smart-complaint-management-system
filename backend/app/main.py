@@ -1,16 +1,18 @@
 from fastapi import FastAPI
 
 from app import models  # noqa: F401 (registers tables)
-from app.database import Base, engine
 from app.config import validate_security_config
+from app.database import Base, engine
 from app.routers import (
-    attachments,
     assignments,
+    attachments,
     auth,
     categories,
     comments,
-    complaints,
     complaint_status,
+    complaints,
+    notifications,
+    reports,
     triage,
     users,
 )
@@ -34,6 +36,8 @@ app.include_router(assignments.router)
 # Issue #10: Comments and attachments
 app.include_router(comments.router)
 app.include_router(attachments.router)
+app.include_router(notifications.router)
+app.include_router(reports.router)
 
 
 @app.get("/health")

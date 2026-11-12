@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import JSONResponse
@@ -10,6 +10,7 @@ from app.deps import get_current_user, require_role
 from app.models import AuditLog, Complaint, Role, Status, User
 from app.schemas import ComplaintHistoryOut, ComplaintStatusUpdateIn
 from app.services.audit import log_action
+from app.services.notify import dispatch_pending, notify
 
 router = APIRouter(prefix="/complaints", tags=["complaint-status"])
 
@@ -75,7 +76,7 @@ def _get_closure_time(db: Session, complaint_id: int):
     closed_at = entry.timestamp
 
     if closed_at.tzinfo is None:
-        closed_at = closed_at.replace(tzinfo=timezone.utc)
+        closed_at = closed_at.replace(tzinfo=UTC)
 
     return closed_at
 
@@ -84,7 +85,7 @@ def _check_grace_period(db: Session, complaint: Complaint):
     closed_at = _get_closure_time(db, complaint.id)
     deadline = closed_at + timedelta(days=REOPEN_GRACE_PERIOD_DAYS)
 
-    if datetime.now(timezone.utc) > deadline:
+    if datetime.now(UTC) > deadline:
         raise HTTPException(
             409,
             detail=(
@@ -143,7 +144,7 @@ def update_complaint_status(
     old_status = complaint.status
     complaint.status = data.status
 
-    log_action(
+    audit_entry = log_action(
         db,
         action="STATUS_CHANGE",
         complaint_id=complaint.id,
@@ -154,8 +155,26 @@ def update_complaint_status(
         reason=data.reason,
     )
 
+    db.flush()
+    event = (
+        "COMPLAINT_RESOLVED"
+        if data.status in (Status.RESOLVED, Status.CLOSED)
+        else (
+            "COMPLAINT_ESCALATED"
+            if data.status == Status.ESCALATED
+            else "COMPLAINT_STATUS_CHANGED"
+        )
+    )
+    notify(
+        db,
+        complaint.complainant_id,
+        event,
+        f"Complaint {complaint.reference_id} status changed to {data.status.value}.",
+        idempotency_key=f"complaint:{complaint.id}:status:{audit_entry.id}",
+    )
     db.commit()
     db.refresh(complaint)
+    dispatch_pending(db, user_id=complaint.complainant_id)
 
     return {
         "message": "Complaint status updated successfully",
@@ -264,7 +283,7 @@ def reopen_complaint(
                 "A reopening request is already awaiting administrator review.",
             )
 
-        log_action(
+        request_log = log_action(
             db,
             action="REOPEN_REQUESTED",
             complaint_id=complaint.id,
@@ -275,7 +294,23 @@ def reopen_complaint(
             reason=justification,
         )
 
+        db.flush()
+        admins = (
+            db.query(User)
+            .filter(User.role == Role.ADMIN, User.is_active.is_(True))
+            .all()
+        )
+        for admin in admins:
+            notify(
+                db,
+                admin.id,
+                "REOPEN_REQUESTED",
+                f"Complaint {complaint.reference_id} has a reopening request awaiting review.",
+                idempotency_key=f"complaint:{complaint.id}:reopen-request:{request_log.id}",
+            )
         db.commit()
+        for admin in admins:
+            dispatch_pending(db, user_id=admin.id)
 
         return JSONResponse(
             status_code=202,
@@ -289,7 +324,7 @@ def reopen_complaint(
     # First reopening can be completed directly.
     complaint.status = Status.REOPENED
 
-    log_action(
+    reopen_log = log_action(
         db,
         action="STATUS_CHANGE",
         complaint_id=complaint.id,
@@ -300,8 +335,19 @@ def reopen_complaint(
         reason=justification,
     )
 
+    db.flush()
+    if complaint.assignee_id is not None:
+        notify(
+            db,
+            complaint.assignee_id,
+            "COMPLAINT_REOPENED",
+            f"Complaint {complaint.reference_id} has been reopened by its complainant.",
+            idempotency_key=f"complaint:{complaint.id}:reopened:{reopen_log.id}",
+        )
     db.commit()
     db.refresh(complaint)
+    if complaint.assignee_id is not None:
+        dispatch_pending(db, user_id=complaint.assignee_id)
 
     return {
         "message": "Complaint reopened successfully",
@@ -348,7 +394,7 @@ def approve_reopen_request(
 
     complaint.status = Status.REOPENED
 
-    log_action(
+    reopen_log = log_action(
         db,
         action="STATUS_CHANGE",
         complaint_id=complaint.id,
@@ -373,8 +419,17 @@ def approve_reopen_request(
         trigger_type="Administrator",
     )
 
+    db.flush()
+    notify(
+        db,
+        complaint.complainant_id,
+        "COMPLAINT_REOPENED",
+        f"Complaint {complaint.reference_id} reopening was approved.",
+        idempotency_key=f"complaint:{complaint.id}:reopen-approved:{reopen_log.id}",
+    )
     db.commit()
     db.refresh(complaint)
+    dispatch_pending(db, user_id=complaint.complainant_id)
 
     return {
         "message": "Reopening request approved successfully",
