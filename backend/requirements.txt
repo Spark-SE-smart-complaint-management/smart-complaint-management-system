@@ -9,3 +9,4 @@ httpx==0.28.1
 python-multipart==0.0.20
 ruff==0.14.4
 reportlab==5.1.0
+APScheduler==3.11.0

@@ -15,6 +15,7 @@ from app.routers import (
     comments,
     complaint_status,
     complaints,
+    escalations,
     notifications,
     reports,
     triage,
@@ -54,6 +55,7 @@ app.include_router(attachments.router)
 app.include_router(notifications.router)
 app.include_router(reports.router)
 
+app.include_router(escalations.router)
 
 @app.get("/health")
 async def health():
