@@ -29,8 +29,8 @@ TERMINAL_STATUSES = {
 # Normalize datetime to naive UTC
 # --------------------------------------------------
 
-def _to_naive_utc(value: datetime) -> datetime:
 
+def _to_naive_utc(value: datetime) -> datetime:
     if value.tzinfo is not None:
         return value.astimezone(timezone.utc).replace(tzinfo=None)
 
@@ -41,8 +41,8 @@ def _to_naive_utc(value: datetime) -> datetime:
 # Get active administrators
 # --------------------------------------------------
 
-def _active_admin_ids(db: Session) -> list[int]:
 
+def _active_admin_ids(db: Session) -> list[int]:
     return [
         row.id
         for row in (
@@ -60,15 +60,14 @@ def _active_admin_ids(db: Session) -> list[int]:
 # Get applicable escalation hierarchy
 # --------------------------------------------------
 
+
 def _get_hierarchy(
     db: Session,
     complaint: Complaint,
 ) -> list[EscalationHierarchy]:
-
     # Category-specific hierarchy takes priority.
 
     if complaint.category_id is not None:
-
         rows = (
             db.query(EscalationHierarchy)
             .filter(
@@ -87,7 +86,6 @@ def _get_hierarchy(
     department = complaint.assigned_department
 
     if not department and complaint.category_id is not None:
-
         category = db.get(Category, complaint.category_id)
 
         department = category.department if category else None
@@ -111,11 +109,11 @@ def _get_hierarchy(
 # Send 80% SLA warning (REQ-28)
 # --------------------------------------------------
 
+
 def send_sla_warning(
     db: Session,
     complaint: Complaint,
 ) -> bool:
-
     if complaint.sla_warning_sent:
         return False
 
@@ -176,6 +174,7 @@ def send_sla_warning(
 # Escalate complaint to next hierarchy level
 # --------------------------------------------------
 
+
 def escalate_complaint(
     db: Session,
     complaint: Complaint,
@@ -184,7 +183,6 @@ def escalate_complaint(
     reason: str | None = None,
     trigger_type: str = "Automatic",
 ) -> bool:
-
     if complaint.is_archived:
         return False
 
@@ -194,10 +192,7 @@ def escalate_complaint(
     # Automatic escalation requires an SLA deadline.
     # Manual escalation does not.
 
-    if (
-        complaint.sla_deadline is None
-        and trigger_type == "Automatic"
-    ):
+    if complaint.sla_deadline is None and trigger_type == "Automatic":
         return False
 
     if complaint.sla_paused_at is not None:
@@ -211,11 +206,7 @@ def escalate_complaint(
     # Select the next configured level.
 
     next_level = next(
-        (
-            item
-            for item in hierarchy
-            if item.level > complaint.escalation_level
-        ),
+        (item for item in hierarchy if item.level > complaint.escalation_level),
         None,
     )
 
@@ -227,7 +218,6 @@ def escalate_complaint(
     new_assignee = None
 
     if next_level.assignee_id is not None:
-
         new_assignee = db.get(User, next_level.assignee_id)
 
         if (
@@ -238,7 +228,6 @@ def escalate_complaint(
             return False
 
     elif next_level.department:
-
         department_exists = (
             db.query(User.id)
             .filter(
@@ -261,11 +250,7 @@ def escalate_complaint(
     old_owner = (
         f"user:{old_assignee_id}"
         if old_assignee_id is not None
-        else (
-            f"department:{old_department}"
-            if old_department
-            else None
-        )
+        else (f"department:{old_department}" if old_department else None)
     )
 
     # Update complaint ownership.
@@ -274,12 +259,10 @@ def escalate_complaint(
     complaint.status = Status.ESCALATED
 
     if new_assignee is not None:
-
         complaint.assignee_id = new_assignee.id
         complaint.assigned_department = None
 
     else:
-
         complaint.assignee_id = None
         complaint.assigned_department = next_level.department
 
@@ -300,9 +283,7 @@ def escalate_complaint(
         to_value=new_owner,
         trigger_type=trigger_type,
         reason=(
-            reason
-            or f"Escalated to {next_level.role_name}; "
-               f"level {next_level.level}"
+            reason or f"Escalated to {next_level.role_name}; level {next_level.level}"
         ),
     )
 
@@ -316,11 +297,9 @@ def escalate_complaint(
         recipients.add(old_assignee_id)
 
     if complaint.assignee_id is not None:
-
         recipients.add(complaint.assignee_id)
 
     elif complaint.assigned_department:
-
         department_staff = (
             db.query(User.id)
             .filter(
@@ -348,12 +327,12 @@ def escalate_complaint(
 # Process SLA warning and automatic escalation
 # --------------------------------------------------
 
+
 def process_sla_complaint(
     db: Session,
     complaint: Complaint,
     now: datetime,
 ) -> dict:
-
     if complaint.is_archived:
         return {
             "warning_sent": False,
@@ -384,7 +363,6 @@ def process_sla_complaint(
     # SLA deadline breached.
 
     if now >= deadline:
-
         complaint.sla_status = SLAStatus.BREACHED
 
         escalated = escalate_complaint(
@@ -405,7 +383,6 @@ def process_sla_complaint(
     warning_sent = False
 
     if complaint.sla_status == SLAStatus.AT_RISK:
-
         warning_sent = send_sla_warning(
             db,
             complaint,

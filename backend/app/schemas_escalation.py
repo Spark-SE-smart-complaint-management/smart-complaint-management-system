@@ -12,9 +12,7 @@ class EscalationHierarchyIn(BaseModel):
     @model_validator(mode="after")
     def validate_scope(self):
         if (self.category_id is None) == (self.department is None):
-            raise ValueError(
-                "Provide exactly one of category_id or department"
-            )
+            raise ValueError("Provide exactly one of category_id or department")
 
         if self.department is not None:
             self.department = self.department.strip()

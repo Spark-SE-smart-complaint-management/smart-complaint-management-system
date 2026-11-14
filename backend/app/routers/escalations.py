@@ -34,6 +34,7 @@ admin_only = require_role(Role.ADMIN)
 # Manual escalation request schema (REQ-29)
 # --------------------------------------------------
 
+
 class ManualEscalationIn(BaseModel):
     reason: str = Field(min_length=1, max_length=500)
 
@@ -42,8 +43,8 @@ class ManualEscalationIn(BaseModel):
 # Validate escalation configuration
 # --------------------------------------------------
 
-def _validate_configuration(db: Session, data):
 
+def _validate_configuration(db: Session, data):
     category = None
 
     if data.category_id is not None:
@@ -59,7 +60,6 @@ def _validate_configuration(db: Session, data):
             )
 
     if data.department is not None:
-
         exists = (
             db.query(User.id)
             .filter(
@@ -77,31 +77,21 @@ def _validate_configuration(db: Session, data):
             )
 
     if data.assignee_id is not None:
-
         staff = db.get(User, data.assignee_id)
 
-        if (
-            staff is None
-            or staff.role != Role.STAFF
-            or not staff.is_active
-        ):
+        if staff is None or staff.role != Role.STAFF or not staff.is_active:
             raise HTTPException(
                 422,
                 "Assignee must be an active staff account",
             )
 
         expected_department = (
-            data.department
-            if data.department is not None
-            else category.department
+            data.department if data.department is not None else category.department
         )
 
-        if (
-            expected_department
-            and (
-                not staff.department
-                or staff.department.lower() != expected_department.lower()
-            )
+        if expected_department and (
+            not staff.department
+            or staff.department.lower() != expected_department.lower()
         ):
             raise HTTPException(
                 422,
@@ -113,8 +103,8 @@ def _validate_configuration(db: Session, data):
 # Check duplicate escalation level
 # --------------------------------------------------
 
-def _duplicate_level(db: Session, data, exclude_id=None):
 
+def _duplicate_level(db: Session, data, exclude_id=None):
     query = db.query(EscalationHierarchy).filter(
         EscalationHierarchy.level == data.level
     )
@@ -131,9 +121,7 @@ def _duplicate_level(db: Session, data, exclude_id=None):
         )
 
     if exclude_id is not None:
-        query = query.filter(
-            EscalationHierarchy.id != exclude_id
-        )
+        query = query.filter(EscalationHierarchy.id != exclude_id)
 
     return query.first() is not None
 
@@ -141,6 +129,7 @@ def _duplicate_level(db: Session, data, exclude_id=None):
 # --------------------------------------------------
 # Create escalation level (REQ-26)
 # --------------------------------------------------
+
 
 @router.post(
     "",
@@ -152,7 +141,6 @@ def create_escalation_level(
     db: Session = Depends(get_db),
     admin: User = Depends(admin_only),
 ):
-
     _validate_configuration(db, data)
 
     if _duplicate_level(db, data):
@@ -191,6 +179,7 @@ def create_escalation_level(
 # List escalation levels
 # --------------------------------------------------
 
+
 @router.get(
     "",
     response_model=list[EscalationHierarchyOut],
@@ -201,7 +190,6 @@ def list_escalation_levels(
     db: Session = Depends(get_db),
     admin: User = Depends(admin_only),
 ):
-
     if category_id is not None and department is not None:
         raise HTTPException(
             422,
@@ -211,24 +199,20 @@ def list_escalation_levels(
     query = db.query(EscalationHierarchy)
 
     if category_id is not None:
-        query = query.filter(
-            EscalationHierarchy.category_id == category_id
-        )
+        query = query.filter(EscalationHierarchy.category_id == category_id)
 
     if department is not None:
         query = query.filter(
-            func.lower(EscalationHierarchy.department)
-            == department.lower()
+            func.lower(EscalationHierarchy.department) == department.lower()
         )
 
-    return query.order_by(
-        EscalationHierarchy.level.asc()
-    ).all()
+    return query.order_by(EscalationHierarchy.level.asc()).all()
 
 
 # --------------------------------------------------
 # Update escalation level
 # --------------------------------------------------
+
 
 @router.put(
     "/{hierarchy_id}",
@@ -240,7 +224,6 @@ def update_escalation_level(
     db: Session = Depends(get_db),
     admin: User = Depends(admin_only),
 ):
-
     level = db.get(EscalationHierarchy, hierarchy_id)
 
     if level is None:
@@ -292,13 +275,13 @@ def update_escalation_level(
 # Deactivate escalation level
 # --------------------------------------------------
 
+
 @router.delete("/{hierarchy_id}", status_code=204)
 def deactivate_escalation_level(
     hierarchy_id: int,
     db: Session = Depends(get_db),
     admin: User = Depends(admin_only),
 ):
-
     level = db.get(EscalationHierarchy, hierarchy_id)
 
     if level is None:
@@ -323,6 +306,7 @@ def deactivate_escalation_level(
 # Manual complaint escalation (REQ-29)
 # --------------------------------------------------
 
+
 @router.post("/complaints/{complaint_id}/manual")
 def manual_escalation(
     complaint_id: int,
@@ -330,7 +314,6 @@ def manual_escalation(
     db: Session = Depends(get_db),
     actor: User = Depends(require_role(Role.STAFF, Role.ADMIN)),
 ):
-
     complaint = db.get(Complaint, complaint_id)
 
     if complaint is None or complaint.is_archived:
