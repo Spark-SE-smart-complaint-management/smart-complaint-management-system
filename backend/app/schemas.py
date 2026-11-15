@@ -1,8 +1,9 @@
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, computed_field, field_validator
 
 from app.models import Priority, Role, Status
+from app.services.sla import get_sla_timer
 
 
 class RegisterIn(BaseModel):
@@ -54,6 +55,9 @@ class ComplaintCreateIn(BaseModel):
     category_id: int | None = None
 
 
+# Issue #8: SLA monitoring and timer fields
+
+
 class ComplaintOut(BaseModel):
     id: int
     reference_id: str
@@ -66,6 +70,22 @@ class ComplaintOut(BaseModel):
     assignee_id: int | None
     assigned_department: str | None
     created_at: datetime
+    sla_deadline: datetime | None = None
+
+    @computed_field
+    @property
+    def sla_elapsed_seconds(self) -> int:
+        return get_sla_timer(self)["sla_elapsed_seconds"]
+
+    @computed_field
+    @property
+    def sla_remaining_seconds(self) -> int | None:
+        return get_sla_timer(self)["sla_remaining_seconds"]
+
+    @computed_field
+    @property
+    def sla_breach_state(self) -> str:
+        return get_sla_timer(self)["sla_breach_state"]
 
     model_config = {"from_attributes": True}
 
