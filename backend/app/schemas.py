@@ -1,8 +1,9 @@
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field, field_validator
+from pydantic import BaseModel, EmailStr, Field, computed_field, field_validator
 
 from app.models import Priority, Role, Status
+from app.services.sla import get_sla_timer
 
 
 class RegisterIn(BaseModel):
