@@ -18,6 +18,7 @@ from app.routers import (
     escalations,
     notifications,
     reports,
+    sla_reports,
     triage,
     users,
 )
@@ -54,6 +55,7 @@ app.include_router(comments.router)
 app.include_router(attachments.router)
 app.include_router(notifications.router)
 app.include_router(reports.router)
+app.include_router(sla_reports.router)
 
 app.include_router(escalations.router)
 
