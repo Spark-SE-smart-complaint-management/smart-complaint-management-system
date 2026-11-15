@@ -98,3 +98,25 @@ def test_sla_compliance_report_counts_and_filters(client, db):
     outsider = make_user(db, "sla-report-outsider@example.com")
     denied = client.get("/reports/sla-compliance", headers=auth_header(client, outsider.email))
     assert denied.status_code == 403
+
+
+def test_business_hours_deadline_skips_weekends_and_configured_holidays(monkeypatch):
+    from app.services.sla import _add_business_hours
+
+    monkeypatch.setenv("SLA_BUSINESS_HOURS_ENABLED", "true")
+    monkeypatch.setenv("SLA_TIMEZONE", "UTC")
+    monkeypatch.setenv("SLA_WORKDAY_START", "09:00")
+    monkeypatch.setenv("SLA_WORKDAY_END", "17:00")
+    monkeypatch.setenv("SLA_WORKING_DAYS", "0,1,2,3,4")
+    monkeypatch.setenv("SLA_HOLIDAYS", "2026-11-16")
+    # Friday 16:00 + two business hours skips the holiday Monday.
+    start = datetime(2026, 11, 13, 16, 0)
+    assert _add_business_hours(start, 2) == datetime(2026, 11, 17, 10, 0)
+
+
+def test_business_hours_disabled_preserves_calendar_hours(monkeypatch):
+    from app.services.sla import _add_business_hours
+
+    monkeypatch.setenv("SLA_BUSINESS_HOURS_ENABLED", "false")
+    start = datetime(2026, 11, 13, 16, 0)
+    assert _add_business_hours(start, 2) == datetime(2026, 11, 13, 18, 0)
