@@ -9,15 +9,26 @@ from tests.conftest import auth_header, make_user
 def test_sla_classification_timezone_and_exact_deadline():
     created = datetime(2026, 11, 15, 9, 0, tzinfo=UTC)
     deadline = created + timedelta(hours=10)
-    assert classify_sla(created, deadline, created + timedelta(hours=7, minutes=59)) == SLAStatus.ON_TRACK
-    assert classify_sla(created, deadline, created + timedelta(hours=8)) == SLAStatus.AT_RISK
-    assert classify_sla(created, deadline, deadline - timedelta(microseconds=1)) == SLAStatus.AT_RISK
+    assert (
+        classify_sla(created, deadline, created + timedelta(hours=7, minutes=59))
+        == SLAStatus.ON_TRACK
+    )
+    assert (
+        classify_sla(created, deadline, created + timedelta(hours=8))
+        == SLAStatus.AT_RISK
+    )
+    assert (
+        classify_sla(created, deadline, deadline - timedelta(microseconds=1))
+        == SLAStatus.AT_RISK
+    )
     assert classify_sla(created, deadline, deadline) == SLAStatus.BREACHED
 
 
 def test_timer_handles_missing_deadline_and_pause():
     created = datetime(2026, 11, 15, 9, 0)
-    untracked = SimpleNamespace(created_at=created, sla_deadline=None, sla_paused_at=None)
+    untracked = SimpleNamespace(
+        created_at=created, sla_deadline=None, sla_paused_at=None
+    )
     assert get_sla_timer(untracked, created + timedelta(minutes=30)) == {
         "sla_elapsed_seconds": 1800,
         "sla_remaining_seconds": None,
@@ -45,7 +56,9 @@ def _complaint(db, citizen, category, ref, created, deadline, status):
         status=status,
         created_at=created,
         sla_deadline=deadline,
-        sla_status=SLAStatus.BREACHED if status == Status.RESOLVED else SLAStatus.ON_TRACK,
+        sla_status=SLAStatus.BREACHED
+        if status == Status.RESOLVED
+        else SLAStatus.ON_TRACK,
     )
     db.add(item)
     db.flush()
@@ -54,32 +67,62 @@ def _complaint(db, citizen, category, ref, created, deadline, status):
 
 def test_sla_compliance_report_counts_and_filters(client, db):
     admin = make_user(db, "sla-report-admin@example.com", Role.ADMIN)
-    staff = make_user(db, "sla-report-staff@example.com", Role.STAFF, department="Water")
+    staff = make_user(
+        db, "sla-report-staff@example.com", Role.STAFF, department="Water"
+    )
     citizen = make_user(db, "sla-report-citizen@example.com")
     category = Category(name="SLA Water", department="Water", is_active=True)
     db.add(category)
     db.commit()
 
     base = datetime.now(UTC).replace(tzinfo=None) - timedelta(days=1)
-    on_time = _complaint(db, citizen, category, "CMP-SLA-000001", base, base + timedelta(hours=4), Status.RESOLVED)
-    late = _complaint(db, citizen, category, "CMP-SLA-000002", base, base + timedelta(hours=1), Status.RESOLVED)
-    open_late = _complaint(db, citizen, category, "CMP-SLA-000003", base, base + timedelta(minutes=1), Status.IN_PROGRESS)
+    on_time = _complaint(
+        db,
+        citizen,
+        category,
+        "CMP-SLA-000001",
+        base,
+        base + timedelta(hours=4),
+        Status.RESOLVED,
+    )
+    late = _complaint(
+        db,
+        citizen,
+        category,
+        "CMP-SLA-000002",
+        base,
+        base + timedelta(hours=1),
+        Status.RESOLVED,
+    )
+    _complaint(
+        db,
+        citizen,
+        category,
+        "CMP-SLA-000003",
+        base,
+        base + timedelta(minutes=1),
+        Status.IN_PROGRESS,
+    )
     for complaint, resolved_at in (
         (on_time, base + timedelta(hours=2)),
         (late, base + timedelta(hours=2)),
     ):
-        db.add(AuditLog(
-            complaint_id=complaint.id,
-            actor_id=staff.id,
-            action="STATUS_CHANGE",
-            from_value=Status.IN_PROGRESS.value,
-            to_value=Status.RESOLVED.value,
-            timestamp=resolved_at,
-        ))
+        db.add(
+            AuditLog(
+                complaint_id=complaint.id,
+                actor_id=staff.id,
+                action="STATUS_CHANGE",
+                from_value=Status.IN_PROGRESS.value,
+                to_value=Status.RESOLVED.value,
+                timestamp=resolved_at,
+            )
+        )
     db.commit()
 
     headers = auth_header(client, admin.email)
-    response = client.get("/reports/sla-compliance", params={"department": "water"}, headers=headers)
+    response = client.get(
+        "/reports/sla-compliance", params={"department": "water"}, headers=headers
+    )
     assert response.status_code == 200
     rows = response.json()["reports"]
     assert len(rows) == 1
@@ -96,7 +139,9 @@ def test_sla_compliance_report_counts_and_filters(client, db):
     assert "SLA Water" in exported.text
 
     outsider = make_user(db, "sla-report-outsider@example.com")
-    denied = client.get("/reports/sla-compliance", headers=auth_header(client, outsider.email))
+    denied = client.get(
+        "/reports/sla-compliance", headers=auth_header(client, outsider.email)
+    )
     assert denied.status_code == 403
 
 

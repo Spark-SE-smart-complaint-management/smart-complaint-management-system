@@ -1,4 +1,5 @@
 """SLA compliance reporting for REQ-34."""
+
 import csv
 import io
 from datetime import date, datetime, time, timedelta, timezone
@@ -17,7 +18,9 @@ admin_only = require_role(Role.ADMIN)
 
 
 def _naive_utc(value: datetime) -> datetime:
-    return value.astimezone(timezone.utc).replace(tzinfo=None) if value.tzinfo else value
+    return (
+        value.astimezone(timezone.utc).replace(tzinfo=None) if value.tzinfo else value
+    )
 
 
 def _sla_rows(db, start_date, end_date, category_id, department):
@@ -29,15 +32,22 @@ def _sla_rows(db, start_date, end_date, category_id, department):
         .filter(Complaint.is_archived.is_(False), Complaint.sla_deadline.is_not(None))
     )
     if start_date:
-        query = query.filter(Complaint.created_at >= datetime.combine(start_date, time.min))
+        query = query.filter(
+            Complaint.created_at >= datetime.combine(start_date, time.min)
+        )
     if end_date:
-        query = query.filter(Complaint.created_at < datetime.combine(end_date + timedelta(days=1), time.min))
+        query = query.filter(
+            Complaint.created_at
+            < datetime.combine(end_date + timedelta(days=1), time.min)
+        )
     if category_id is not None:
         query = query.filter(Complaint.category_id == category_id)
     if department:
-        effective_department = func.lower(func.coalesce(
-            Complaint.assigned_department, assignee.department, Category.department
-        ))
+        effective_department = func.lower(
+            func.coalesce(
+                Complaint.assigned_department, assignee.department, Category.department
+            )
+        )
         query = query.filter(effective_department == department.strip().lower())
     return query.order_by(Complaint.created_at.asc(), Complaint.id.asc()).all()
 
@@ -56,7 +66,9 @@ def _first_resolution_time(db, complaint_id):
     return event[0] if event else None
 
 
-def build_sla_compliance_report(db, start_date=None, end_date=None, category_id=None, department=None):
+def build_sla_compliance_report(
+    db, start_date=None, end_date=None, category_id=None, department=None
+):
     if start_date and end_date and start_date > end_date:
         raise HTTPException(422, "start_date must be on or before end_date")
 
@@ -66,21 +78,27 @@ def build_sla_compliance_report(db, start_date=None, end_date=None, category_id=
         db, start_date, end_date, category_id, department
     ):
         effective_department = (
-            complaint.assigned_department or assignee_department or category_department or "Unassigned"
+            complaint.assigned_department
+            or assignee_department
+            or category_department
+            or "Unassigned"
         )
         category = category_name or "Uncategorized"
         priority = complaint.priority.value if complaint.priority else "Unassigned"
         key = (category, effective_department, priority)
-        row = groups.setdefault(key, {
-            "category": category,
-            "total_complaints": 0,
-            "priority": priority,
-            "resolved_within_sla": 0,
-            "sla_breached_count": 0,
-            "department": effective_department,
-            "_resolved_count": 0,
-            "_resolution_hours": [],
-        })
+        row = groups.setdefault(
+            key,
+            {
+                "category": category,
+                "total_complaints": 0,
+                "priority": priority,
+                "resolved_within_sla": 0,
+                "sla_breached_count": 0,
+                "department": effective_department,
+                "_resolved_count": 0,
+                "_resolution_hours": [],
+            },
+        )
         row["total_complaints"] += 1
         deadline = _naive_utc(complaint.sla_deadline)
         resolved_at = (
@@ -92,7 +110,9 @@ def build_sla_compliance_report(db, start_date=None, end_date=None, category_id=
             resolved_at = _naive_utc(resolved_at)
             created_at = _naive_utc(complaint.created_at)
             row["_resolved_count"] += 1
-            row["_resolution_hours"].append(max(0, (resolved_at - created_at).total_seconds() / 3600))
+            row["_resolution_hours"].append(
+                max(0, (resolved_at - created_at).total_seconds() / 3600)
+            )
             if resolved_at <= deadline:
                 row["resolved_within_sla"] += 1
             else:
@@ -106,13 +126,20 @@ def build_sla_compliance_report(db, start_date=None, end_date=None, category_id=
         durations = row.pop("_resolution_hours")
         row["sla_compliance_percent"] = (
             round(100 * row["resolved_within_sla"] / resolved_count, 2)
-            if resolved_count else 0.0
+            if resolved_count
+            else 0.0
         )
         row["average_resolution_time_hours"] = (
             round(sum(durations) / len(durations), 2) if durations else None
         )
         reports.append(row)
-    reports.sort(key=lambda item: (item["category"].casefold(), item["department"].casefold(), item["priority"]))
+    reports.sort(
+        key=lambda item: (
+            item["category"].casefold(),
+            item["department"].casefold(),
+            item["priority"],
+        )
+    )
     return {
         "filters": {
             "start_date": start_date.isoformat() if start_date else None,
@@ -137,7 +164,9 @@ def get_sla_compliance(
     db: Session = Depends(get_db),
     _admin: User = Depends(admin_only),
 ):
-    return build_sla_compliance_report(db, start_date, end_date, category_id, department)
+    return build_sla_compliance_report(
+        db, start_date, end_date, category_id, department
+    )
 
 
 @router.get("/sla-compliance/export")
@@ -150,21 +179,40 @@ def export_sla_compliance(
     db: Session = Depends(get_db),
     _admin: User = Depends(admin_only),
 ):
-    report = build_sla_compliance_report(db, start_date, end_date, category_id, department)
+    report = build_sla_compliance_report(
+        db, start_date, end_date, category_id, department
+    )
     stream = io.StringIO(newline="")
     writer = csv.writer(stream)
-    writer.writerow([
-        "Category", "Total Complaints", "Priority", "Resolved Within SLA",
-        "SLA Breached Count", "SLA Compliance %", "Average Resolution Time (hours)", "Department",
-    ])
+    writer.writerow(
+        [
+            "Category",
+            "Total Complaints",
+            "Priority",
+            "Resolved Within SLA",
+            "SLA Breached Count",
+            "SLA Compliance %",
+            "Average Resolution Time (hours)",
+            "Department",
+        ]
+    )
     for row in report["reports"]:
-        writer.writerow([
-            row["category"], row["total_complaints"], row["priority"],
-            row["resolved_within_sla"], row["sla_breached_count"],
-            row["sla_compliance_percent"], row["average_resolution_time_hours"], row["department"],
-        ])
+        writer.writerow(
+            [
+                row["category"],
+                row["total_complaints"],
+                row["priority"],
+                row["resolved_within_sla"],
+                row["sla_breached_count"],
+                row["sla_compliance_percent"],
+                row["average_resolution_time_hours"],
+                row["department"],
+            ]
+        )
     return Response(
         content=stream.getvalue(),
         media_type="text/csv; charset=utf-8",
-        headers={"Content-Disposition": 'attachment; filename="sla-compliance-report.csv"'},
+        headers={
+            "Content-Disposition": 'attachment; filename="sla-compliance-report.csv"'
+        },
     )

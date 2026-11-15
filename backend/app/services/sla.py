@@ -1,4 +1,5 @@
 """SLA helpers for deadline calculation, monitoring and business-hours mode."""
+
 import os
 from datetime import date, datetime, time, timedelta, timezone
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -22,7 +23,11 @@ def to_naive_utc(dt: datetime) -> datetime:
 
 
 def _business_settings():
-    enabled = os.getenv("SLA_BUSINESS_HOURS_ENABLED", "false").strip().lower() in {"1", "true", "yes"}
+    enabled = os.getenv("SLA_BUSINESS_HOURS_ENABLED", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+    }
     timezone_name = os.getenv("SLA_TIMEZONE", "UTC")
     try:
         zone = ZoneInfo(timezone_name)
@@ -55,21 +60,27 @@ def _add_business_hours(start_utc: datetime, hours: int) -> datetime:
     local = start_utc.replace(tzinfo=timezone.utc).astimezone(zone)
     while remaining > timedelta(0):
         if local.weekday() not in weekdays or local.date() in holidays:
-            local = datetime.combine(local.date() + timedelta(days=1), work_start, tzinfo=zone)
+            local = datetime.combine(
+                local.date() + timedelta(days=1), work_start, tzinfo=zone
+            )
             continue
         day_start = datetime.combine(local.date(), work_start, tzinfo=zone)
         day_end = datetime.combine(local.date(), work_end, tzinfo=zone)
         if local < day_start:
             local = day_start
         if local >= day_end:
-            local = datetime.combine(local.date() + timedelta(days=1), work_start, tzinfo=zone)
+            local = datetime.combine(
+                local.date() + timedelta(days=1), work_start, tzinfo=zone
+            )
             continue
         available = day_end.astimezone(timezone.utc) - local.astimezone(timezone.utc)
         consumed = min(remaining, available)
         local = (local.astimezone(timezone.utc) + consumed).astimezone(zone)
         remaining -= consumed
         if remaining > timedelta(0) and local >= day_end:
-            local = datetime.combine(local.date() + timedelta(days=1), work_start, tzinfo=zone)
+            local = datetime.combine(
+                local.date() + timedelta(days=1), work_start, tzinfo=zone
+            )
     return local.astimezone(timezone.utc).replace(tzinfo=None)
 
 
@@ -93,26 +104,40 @@ def _working_seconds_between(start_utc: datetime, end_utc: datetime) -> int:
             left = max(local_start, window_start)
             right = min(local_end, window_end)
             if right > left:
-                total += int((right.astimezone(timezone.utc) - left.astimezone(timezone.utc)).total_seconds())
+                total += int(
+                    (
+                        right.astimezone(timezone.utc) - left.astimezone(timezone.utc)
+                    ).total_seconds()
+                )
         day += timedelta(days=1)
     return total
 
 
-def get_sla_hours(db: Session, category_id: int | None, priority: Priority | None) -> int | None:
+def get_sla_hours(
+    db: Session, category_id: int | None, priority: Priority | None
+) -> int | None:
     if category_id is None or priority is None:
         return None
-    policy = db.query(SLAPolicy).filter(
-        SLAPolicy.category_id == category_id, SLAPolicy.priority == priority
-    ).first()
+    policy = (
+        db.query(SLAPolicy)
+        .filter(SLAPolicy.category_id == category_id, SLAPolicy.priority == priority)
+        .first()
+    )
     return policy.duration_hours if policy else None
 
 
-def compute_sla_deadline(db: Session, category_id, priority, start: datetime) -> datetime | None:
+def compute_sla_deadline(
+    db: Session, category_id, priority, start: datetime
+) -> datetime | None:
     hours = get_sla_hours(db, category_id, priority)
-    return _add_business_hours(to_naive_utc(start), hours) if hours is not None else None
+    return (
+        _add_business_hours(to_naive_utc(start), hours) if hours is not None else None
+    )
 
 
-def classify_sla(created_at: datetime, deadline: datetime | None, now: datetime | None = None) -> SLAStatus | None:
+def classify_sla(
+    created_at: datetime, deadline: datetime | None, now: datetime | None = None
+) -> SLAStatus | None:
     if deadline is None:
         return None
     now = to_naive_utc(now or now_utc())
@@ -136,19 +161,40 @@ def get_sla_timer(complaint: Complaint, now: datetime | None = None) -> dict:
     effective_now = min(now, to_naive_utc(paused_at)) if paused_at is not None else now
     elapsed = _working_seconds_between(created, effective_now)
     if deadline is None:
-        return {"sla_elapsed_seconds": elapsed, "sla_remaining_seconds": None, "sla_breach_state": "Not Tracked"}
+        return {
+            "sla_elapsed_seconds": elapsed,
+            "sla_remaining_seconds": None,
+            "sla_breach_state": "Not Tracked",
+        }
     remaining = _working_seconds_between(effective_now, deadline)
     state = classify_sla(created, deadline, effective_now)
-    return {"sla_elapsed_seconds": elapsed, "sla_remaining_seconds": remaining, "sla_breach_state": state.value}
+    return {
+        "sla_elapsed_seconds": elapsed,
+        "sla_remaining_seconds": remaining,
+        "sla_breach_state": state.value,
+    }
 
 
-def recompute_sla(db: Session, complaint: Complaint, actor_id: int | None, trigger_type: str = "Manual") -> None:
+def recompute_sla(
+    db: Session,
+    complaint: Complaint,
+    actor_id: int | None,
+    trigger_type: str = "Manual",
+) -> None:
     """REQ-16: recompute when category or priority changes. Caller commits."""
     old = complaint.sla_deadline
-    new = compute_sla_deadline(db, complaint.category_id, complaint.priority, complaint.created_at)
+    new = compute_sla_deadline(
+        db, complaint.category_id, complaint.priority, complaint.created_at
+    )
     complaint.sla_deadline = new
     complaint.sla_status = classify_sla(complaint.created_at, new)
     complaint.sla_warning_sent = False
-    log_action(db, action="SLA_RECOMPUTE", complaint_id=complaint.id, actor_id=actor_id,
-               from_value=old.isoformat() if old else None,
-               to_value=new.isoformat() if new else None, trigger_type=trigger_type)
+    log_action(
+        db,
+        action="SLA_RECOMPUTE",
+        complaint_id=complaint.id,
+        actor_id=actor_id,
+        from_value=old.isoformat() if old else None,
+        to_value=new.isoformat() if new else None,
+        trigger_type=trigger_type,
+    )
