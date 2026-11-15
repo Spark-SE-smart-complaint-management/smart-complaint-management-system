@@ -73,6 +73,31 @@ def _add_business_hours(start_utc: datetime, hours: int) -> datetime:
     return local.astimezone(timezone.utc).replace(tzinfo=None)
 
 
+def _working_seconds_between(start_utc: datetime, end_utc: datetime) -> int:
+    """Count only configured working-window seconds between two UTC instants."""
+    enabled, zone, work_start, work_end, weekdays, holidays = _business_settings()
+    start_utc, end_utc = to_naive_utc(start_utc), to_naive_utc(end_utc)
+    if end_utc <= start_utc:
+        return 0
+    if not enabled:
+        return int((end_utc - start_utc).total_seconds())
+
+    local_start = start_utc.replace(tzinfo=timezone.utc).astimezone(zone)
+    local_end = end_utc.replace(tzinfo=timezone.utc).astimezone(zone)
+    total = 0
+    day = local_start.date()
+    while day <= local_end.date():
+        if day.weekday() in weekdays and day not in holidays:
+            window_start = datetime.combine(day, work_start, tzinfo=zone)
+            window_end = datetime.combine(day, work_end, tzinfo=zone)
+            left = max(local_start, window_start)
+            right = min(local_end, window_end)
+            if right > left:
+                total += int((right.astimezone(timezone.utc) - left.astimezone(timezone.utc)).total_seconds())
+        day += timedelta(days=1)
+    return total
+
+
 def get_sla_hours(db: Session, category_id: int | None, priority: Priority | None) -> int | None:
     if category_id is None or priority is None:
         return None
@@ -94,8 +119,8 @@ def classify_sla(created_at: datetime, deadline: datetime | None, now: datetime 
     created_at, deadline = to_naive_utc(created_at), to_naive_utc(deadline)
     if now >= deadline:
         return SLAStatus.BREACHED
-    total = (deadline - created_at).total_seconds()
-    elapsed = (now - created_at).total_seconds()
+    total = _working_seconds_between(created_at, deadline)
+    elapsed = _working_seconds_between(created_at, now)
     if total > 0 and elapsed / total >= AT_RISK_FRACTION:
         return SLAStatus.AT_RISK
     return SLAStatus.ON_TRACK
@@ -109,10 +134,10 @@ def get_sla_timer(complaint: Complaint, now: datetime | None = None) -> dict:
     deadline = to_naive_utc(raw_deadline) if raw_deadline is not None else None
     paused_at = getattr(complaint, "sla_paused_at", None)
     effective_now = min(now, to_naive_utc(paused_at)) if paused_at is not None else now
-    elapsed = max(0, int((effective_now - created).total_seconds()))
+    elapsed = _working_seconds_between(created, effective_now)
     if deadline is None:
         return {"sla_elapsed_seconds": elapsed, "sla_remaining_seconds": None, "sla_breach_state": "Not Tracked"}
-    remaining = max(0, int((deadline - effective_now).total_seconds()))
+    remaining = _working_seconds_between(effective_now, deadline)
     state = classify_sla(created, deadline, effective_now)
     return {"sla_elapsed_seconds": elapsed, "sla_remaining_seconds": remaining, "sla_breach_state": state.value}
 
