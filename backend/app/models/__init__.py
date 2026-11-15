@@ -4,6 +4,7 @@ from app.models.category import Category, SLAPolicy
 from app.models.comment import Comment
 from app.models.complaint import Complaint
 from app.models.enums import Priority, Role, SLAStatus, Status
+from app.models.escalation import EscalationHierarchy
 from app.models.notification import (
     Notification,
     NotificationDelivery,
@@ -17,6 +18,7 @@ __all__ = [
     "Category",
     "Comment",
     "Complaint",
+    "EscalationHierarchy",
     "Notification",
     "NotificationDelivery",
     "NotificationPreference",
