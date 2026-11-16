@@ -6,7 +6,7 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from app.database import SessionLocal
 from app.models import Complaint, Status
 from app.services.escalation import process_sla_complaint
-from app.services.notify import retry_failed
+from app.services.notify import dispatch_pending, retry_failed
 from app.services.sla import classify_sla
 
 
@@ -73,7 +73,16 @@ def run_notification_cycle():
     db = SessionLocal()
     try:
         batch_size = max(1, int(os.getenv("NOTIFICATION_BATCH_SIZE", "100")))
-        result = retry_failed(db, limit=batch_size)
+        retried = retry_failed(db, limit=batch_size)
+        remaining = max(0, batch_size - retried["attempted"])
+        pending = (
+            dispatch_pending(db, limit=remaining)
+            if remaining
+            else {"attempted": 0, "sent": 0, "failed": 0}
+        )
+        result = {
+            key: retried[key] + pending[key] for key in ("attempted", "sent", "failed")
+        }
         print(
             f"[Notification Scheduler] Attempted: {result['attempted']} | "
             f"Sent: {result['sent']} | Failed: {result['failed']}"
