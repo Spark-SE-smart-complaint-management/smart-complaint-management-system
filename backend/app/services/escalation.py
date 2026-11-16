@@ -126,14 +126,35 @@ def send_sla_warning(
     if complaint.sla_paused_at is not None:
         return False
 
-    if complaint.assignee_id is None:
-        return False
-
     if complaint.sla_status != SLAStatus.AT_RISK:
         return False
 
-    # Prevent duplicate warning events.
+    # A complaint may be assigned to an individual or to an entire department.
+    # In the latter case, notify all active staff in the responsible department.
+    recipient_ids: set[int] = set()
+    if complaint.assignee_id is not None:
+        recipient_ids.add(complaint.assignee_id)
+    else:
+        department = complaint.assigned_department
+        if not department and complaint.category_id is not None:
+            category = db.get(Category, complaint.category_id)
+            department = category.department if category else None
+        if department:
+            rows = (
+                db.query(User.id)
+                .filter(
+                    User.role == Role.STAFF,
+                    User.is_active.is_(True),
+                    User.department.ilike(department),
+                )
+                .all()
+            )
+            recipient_ids.update(row.id for row in rows)
 
+    if not recipient_ids:
+        return False
+
+    # Prevent duplicate warning events, including after a scheduler restart.
     existing_event = (
         db.query(AuditLog)
         .filter_by(
@@ -153,20 +174,21 @@ def send_sla_warning(
         complaint_id=complaint.id,
         actor_id=None,
         trigger_type="Automatic",
+        reason="80% of the SLA duration elapsed",
     )
 
     db.flush()
 
-    notify_sla_at_risk(
-        db,
-        complaint_id=complaint.id,
-        reference_id=complaint.reference_id,
-        recipient_id=complaint.assignee_id,
-        event_id=str(warning_log.id),
-    )
+    for recipient_id in sorted(recipient_ids):
+        notify_sla_at_risk(
+            db,
+            complaint_id=complaint.id,
+            reference_id=complaint.reference_id,
+            recipient_id=recipient_id,
+            event_id=str(warning_log.id),
+        )
 
     complaint.sla_warning_sent = True
-
     return True
 
 
