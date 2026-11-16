@@ -38,7 +38,7 @@ External delivery rows are dispatched by a separate scheduler process. Start it 
 python -m app.scheduler
 ```
 
-The scheduler runs the existing SLA cycle every 15 minutes and the notification outbox cycle every minute. Each notification cycle processes at most `NOTIFICATION_BATCH_SIZE` due rows (default 100), records provider failures, and retries only rows whose exponential-backoff deadline has elapsed. The process uses a fresh database session per cycle and closes it after success or failure. Run one scheduler instance per deployment; the APScheduler job also prevents overlapping executions within that process.
+The scheduler runs the existing SLA cycle every 15 minutes and the notification outbox cycle every minute. Each notification cycle retries eligible failed rows first, then uses the remaining `NOTIFICATION_BATCH_SIZE` budget (default 100) to dispatch newly queued pending rows. The total number of delivery attempts per cycle is therefore bounded by the configured batch size. Provider failures are recorded and retried only after their exponential-backoff deadline has elapsed. The process uses a fresh database session per cycle and closes it after success or failure. Run one scheduler instance per deployment; the APScheduler job also prevents overlapping executions within that process.
 
 ## Provider configuration
 
