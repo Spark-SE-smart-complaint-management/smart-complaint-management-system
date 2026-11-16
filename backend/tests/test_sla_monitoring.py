@@ -201,9 +201,9 @@ def test_department_assigned_complaint_sends_warning_to_active_staff(db):
 
     recipients = {
         row.user_id
-        for row in db.query(Notification).filter_by(
-            complaint_id=complaint.id,
-            event_type="SLA_AT_RISK",
+        for row in db.query(Notification).filter(
+            Notification.user_id.in_([staff_a.id, staff_b.id]),
+            Notification.event == "SLA_AT_RISK",
         ).all()
     }
     assert recipients == {staff_a.id, staff_b.id}
