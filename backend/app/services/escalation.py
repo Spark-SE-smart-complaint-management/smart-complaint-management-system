@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+import json
 
 from sqlalchemy.orm import Session
 
@@ -126,14 +127,35 @@ def send_sla_warning(
     if complaint.sla_paused_at is not None:
         return False
 
-    if complaint.assignee_id is None:
-        return False
-
     if complaint.sla_status != SLAStatus.AT_RISK:
         return False
 
-    # Prevent duplicate warning events.
+    # A complaint may be assigned to an individual or to an entire department.
+    # In the latter case, notify all active staff in the responsible department.
+    recipient_ids: set[int] = set()
+    if complaint.assignee_id is not None:
+        recipient_ids.add(complaint.assignee_id)
+    else:
+        department = complaint.assigned_department
+        if not department and complaint.category_id is not None:
+            category = db.get(Category, complaint.category_id)
+            department = category.department if category else None
+        if department:
+            rows = (
+                db.query(User.id)
+                .filter(
+                    User.role == Role.STAFF,
+                    User.is_active.is_(True),
+                    User.department.ilike(department),
+                )
+                .all()
+            )
+            recipient_ids.update(row.id for row in rows)
 
+    if not recipient_ids:
+        return False
+
+    # Prevent duplicate warning events, including after a scheduler restart.
     existing_event = (
         db.query(AuditLog)
         .filter_by(
@@ -153,20 +175,21 @@ def send_sla_warning(
         complaint_id=complaint.id,
         actor_id=None,
         trigger_type="Automatic",
+        reason="80% of the SLA duration elapsed",
     )
 
     db.flush()
 
-    notify_sla_at_risk(
-        db,
-        complaint_id=complaint.id,
-        reference_id=complaint.reference_id,
-        recipient_id=complaint.assignee_id,
-        event_id=str(warning_log.id),
-    )
+    for recipient_id in sorted(recipient_ids):
+        notify_sla_at_risk(
+            db,
+            complaint_id=complaint.id,
+            reference_id=complaint.reference_id,
+            recipient_id=recipient_id,
+            event_id=str(warning_log.id),
+        )
 
     complaint.sla_warning_sent = True
-
     return True
 
 
@@ -246,6 +269,8 @@ def escalate_complaint(
 
     old_assignee_id = complaint.assignee_id
     old_department = complaint.assigned_department
+    old_status = complaint.status
+    old_escalation_level = complaint.escalation_level
 
     old_owner = (
         f"user:{old_assignee_id}"
@@ -282,8 +307,20 @@ def escalate_complaint(
         from_value=old_owner,
         to_value=new_owner,
         trigger_type=trigger_type,
-        reason=(
-            reason or f"Escalated to {next_level.role_name}; level {next_level.level}"
+        reason=json.dumps(
+            {
+                "_escalation_state_v1": True,
+                "message": reason
+                or (f"Escalated to {next_level.role_name}; level {next_level.level}"),
+                "previous_status": old_status.value,
+                "previous_escalation_level": old_escalation_level,
+                "previous_assignee_id": old_assignee_id,
+                "previous_department": old_department,
+                "new_status": complaint.status.value,
+                "new_escalation_level": complaint.escalation_level,
+                "new_assignee_id": complaint.assignee_id,
+                "new_department": complaint.assigned_department,
+            }
         ),
     )
 
@@ -392,3 +429,95 @@ def process_sla_complaint(
         "warning_sent": warning_sent,
         "escalated": False,
     }
+
+
+def reverse_automatic_escalation(
+    db: Session,
+    complaint: Complaint,
+    *,
+    admin_id: int,
+    reason: str,
+) -> AuditLog:
+    """Restore the exact pre-escalation state and append a reversal audit event."""
+    event = (
+        db.query(AuditLog)
+        .filter(
+            AuditLog.complaint_id == complaint.id,
+            AuditLog.action == "COMPLAINT_ESCALATED",
+            AuditLog.trigger_type == "Automatic",
+        )
+        .order_by(AuditLog.id.desc())
+        .first()
+    )
+    if event is None:
+        raise ValueError("No automatic escalation is available to reverse")
+
+    already_reversed = (
+        db.query(AuditLog.id)
+        .filter(
+            AuditLog.complaint_id == complaint.id,
+            AuditLog.action == "COMPLAINT_ESCALATION_REVERSED",
+            AuditLog.from_value == str(event.id),
+        )
+        .first()
+    )
+    if already_reversed:
+        raise ValueError("This automatic escalation has already been reversed")
+
+    try:
+        metadata = json.loads(event.reason or "")
+    except (TypeError, ValueError):
+        metadata = None
+
+    if (
+        not isinstance(metadata, dict)
+        or metadata.get("_escalation_state_v1") is not True
+    ):
+        raise ValueError("This escalation predates reversible state tracking")
+
+    expected = (
+        metadata.get("new_status") == complaint.status.value
+        and metadata.get("new_escalation_level") == complaint.escalation_level
+        and metadata.get("new_assignee_id") == complaint.assignee_id
+        and metadata.get("new_department") == complaint.assigned_department
+    )
+    if not expected:
+        raise ValueError("Complaint changed after escalation; reversal is unsafe")
+
+    previous_status = Status(metadata["previous_status"])
+    previous_level = int(metadata["previous_escalation_level"])
+    previous_assignee_id = metadata.get("previous_assignee_id")
+    previous_department = metadata.get("previous_department")
+
+    current_owner = (
+        f"user:{complaint.assignee_id}"
+        if complaint.assignee_id is not None
+        else (
+            f"department:{complaint.assigned_department}"
+            if complaint.assigned_department
+            else None
+        )
+    )
+    previous_owner = (
+        f"user:{previous_assignee_id}"
+        if previous_assignee_id is not None
+        else (f"department:{previous_department}" if previous_department else None)
+    )
+
+    complaint.status = previous_status
+    complaint.escalation_level = previous_level
+    complaint.assignee_id = previous_assignee_id
+    complaint.assigned_department = previous_department
+
+    reversal = log_action(
+        db,
+        action="COMPLAINT_ESCALATION_REVERSED",
+        complaint_id=complaint.id,
+        actor_id=admin_id,
+        from_value=str(event.id),
+        to_value=previous_owner,
+        trigger_type="Manual",
+        reason=f"Reversed automatic escalation from {current_owner or 'unassigned'}: {reason}",
+    )
+    db.flush()
+    return reversal

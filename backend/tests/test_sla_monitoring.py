@@ -1,7 +1,16 @@
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
-from app.models import AuditLog, Category, Complaint, Priority, Role, SLAStatus, Status
+from app.models import (
+    AuditLog,
+    Category,
+    Complaint,
+    Notification,
+    Priority,
+    Role,
+    SLAStatus,
+    Status,
+)
 from app.services.sla import classify_sla, get_sla_timer
 from tests.conftest import auth_header, make_user
 
@@ -165,3 +174,46 @@ def test_business_hours_disabled_preserves_calendar_hours(monkeypatch):
     monkeypatch.setenv("SLA_BUSINESS_HOURS_ENABLED", "false")
     start = datetime(2026, 11, 13, 16, 0)
     assert _add_business_hours(start, 2) == datetime(2026, 11, 13, 18, 0)
+
+
+def test_department_assigned_complaint_sends_warning_to_active_staff(db):
+    from app.services.escalation import send_sla_warning
+
+    staff_a = make_user(db, "sla-dept-a@example.com", Role.STAFF, department="Water")
+    staff_b = make_user(db, "sla-dept-b@example.com", Role.STAFF, department="Water")
+    make_user(db, "sla-dept-other@example.com", Role.STAFF, department="Roads")
+    citizen = make_user(db, "sla-dept-citizen@example.com")
+    category = Category(
+        name="SLA Department Warning", department="Water", is_active=True
+    )
+    db.add(category)
+    db.flush()
+    complaint = Complaint(
+        reference_id="CMP-SLA-DEPT-01",
+        complainant_id=citizen.id,
+        title="Department assigned",
+        description="Warning recipient test",
+        category_id=category.id,
+        priority=Priority.HIGH,
+        status=Status.ASSIGNED,
+        assigned_department="Water",
+        sla_deadline=datetime.now(UTC).replace(tzinfo=None) + timedelta(hours=1),
+        sla_status=SLAStatus.AT_RISK,
+    )
+    db.add(complaint)
+    db.flush()
+
+    assert send_sla_warning(db, complaint) is True
+    db.commit()
+
+    recipients = {
+        row.user_id
+        for row in db.query(Notification)
+        .filter(
+            Notification.user_id.in_([staff_a.id, staff_b.id]),
+            Notification.event == "SLA_AT_RISK",
+        )
+        .all()
+    }
+    assert recipients == {staff_a.id, staff_b.id}
+    assert send_sla_warning(db, complaint) is False
