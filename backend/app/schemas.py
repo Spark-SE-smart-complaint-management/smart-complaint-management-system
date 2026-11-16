@@ -160,7 +160,7 @@ class NotificationOut(BaseModel):
 
 
 class NotificationHistoryOut(BaseModel):
-    """Admin-safe notification audit metadata; message bodies are intentionally excluded."""
+    """Admin-safe notification audit metadata without message bodies."""
 
     id: int
     user_id: int
