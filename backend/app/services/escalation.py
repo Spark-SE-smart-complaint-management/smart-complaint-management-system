@@ -310,9 +310,8 @@ def escalate_complaint(
         reason=json.dumps(
             {
                 "_escalation_state_v1": True,
-                "message": reason or (
-                    f"Escalated to {next_level.role_name}; level {next_level.level}"
-                ),
+                "message": reason
+                or (f"Escalated to {next_level.role_name}; level {next_level.level}"),
                 "previous_status": old_status.value,
                 "previous_escalation_level": old_escalation_level,
                 "previous_assignee_id": old_assignee_id,
@@ -432,7 +431,6 @@ def process_sla_complaint(
     }
 
 
-
 def reverse_automatic_escalation(
     db: Session,
     complaint: Complaint,
@@ -471,7 +469,10 @@ def reverse_automatic_escalation(
     except (TypeError, ValueError):
         metadata = None
 
-    if not isinstance(metadata, dict) or metadata.get("_escalation_state_v1") is not True:
+    if (
+        not isinstance(metadata, dict)
+        or metadata.get("_escalation_state_v1") is not True
+    ):
         raise ValueError("This escalation predates reversible state tracking")
 
     expected = (
@@ -491,7 +492,11 @@ def reverse_automatic_escalation(
     current_owner = (
         f"user:{complaint.assignee_id}"
         if complaint.assignee_id is not None
-        else (f"department:{complaint.assigned_department}" if complaint.assigned_department else None)
+        else (
+            f"department:{complaint.assigned_department}"
+            if complaint.assigned_department
+            else None
+        )
     )
     previous_owner = (
         f"user:{previous_assignee_id}"

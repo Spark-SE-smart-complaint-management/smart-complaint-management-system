@@ -361,7 +361,6 @@ def manual_escalation(
     }
 
 
-
 # --------------------------------------------------
 # Reverse automatic escalation (administrator only)
 # --------------------------------------------------

@@ -1,7 +1,16 @@
 from datetime import UTC, datetime, timedelta
 from types import SimpleNamespace
 
-from app.models import AuditLog, Category, Complaint, Notification, Priority, Role, SLAStatus, Status
+from app.models import (
+    AuditLog,
+    Category,
+    Complaint,
+    Notification,
+    Priority,
+    Role,
+    SLAStatus,
+    Status,
+)
 from app.services.sla import classify_sla, get_sla_timer
 from tests.conftest import auth_header, make_user
 
@@ -170,15 +179,13 @@ def test_business_hours_disabled_preserves_calendar_hours(monkeypatch):
 def test_department_assigned_complaint_sends_warning_to_active_staff(db):
     from app.services.escalation import send_sla_warning
 
-    staff_a = make_user(
-        db, "sla-dept-a@example.com", Role.STAFF, department="Water"
-    )
-    staff_b = make_user(
-        db, "sla-dept-b@example.com", Role.STAFF, department="Water"
-    )
+    staff_a = make_user(db, "sla-dept-a@example.com", Role.STAFF, department="Water")
+    staff_b = make_user(db, "sla-dept-b@example.com", Role.STAFF, department="Water")
     make_user(db, "sla-dept-other@example.com", Role.STAFF, department="Roads")
     citizen = make_user(db, "sla-dept-citizen@example.com")
-    category = Category(name="SLA Department Warning", department="Water", is_active=True)
+    category = Category(
+        name="SLA Department Warning", department="Water", is_active=True
+    )
     db.add(category)
     db.flush()
     complaint = Complaint(
@@ -201,10 +208,12 @@ def test_department_assigned_complaint_sends_warning_to_active_staff(db):
 
     recipients = {
         row.user_id
-        for row in db.query(Notification).filter(
+        for row in db.query(Notification)
+        .filter(
             Notification.user_id.in_([staff_a.id, staff_b.id]),
             Notification.event == "SLA_AT_RISK",
-        ).all()
+        )
+        .all()
     }
     assert recipients == {staff_a.id, staff_b.id}
     assert send_sla_warning(db, complaint) is False
