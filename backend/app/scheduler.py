@@ -6,8 +6,8 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from app.database import SessionLocal
 from app.models import Complaint, Status
 from app.services.escalation import process_sla_complaint
-from app.services.sla import classify_sla
 from app.services.notify import retry_failed
+from app.services.sla import classify_sla
 
 
 def run_sla_cycle():
