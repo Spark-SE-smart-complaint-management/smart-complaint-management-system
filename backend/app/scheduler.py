@@ -6,6 +6,7 @@ from apscheduler.schedulers.blocking import BlockingScheduler
 from app.database import SessionLocal
 from app.models import Complaint, Status
 from app.services.escalation import process_sla_complaint
+from app.services.notify import dispatch_pending, retry_failed
 from app.services.sla import classify_sla
 
 
@@ -76,6 +77,33 @@ def run_sla_cycle():
     )
 
 
+def run_notification_cycle():
+    """Dispatch pending notifications and retry failures whose backoff expired."""
+    db = SessionLocal()
+    try:
+        batch_size = max(1, int(os.getenv("NOTIFICATION_BATCH_SIZE", "100")))
+        retried = retry_failed(db, limit=batch_size)
+        remaining = max(0, batch_size - retried["attempted"])
+        pending = (
+            dispatch_pending(db, limit=remaining)
+            if remaining
+            else {"attempted": 0, "sent": 0, "failed": 0}
+        )
+        result = {
+            key: retried[key] + pending[key] for key in ("attempted", "sent", "failed")
+        }
+        print(
+            f"[Notification Scheduler] Attempted: {result['attempted']} | "
+            f"Sent: {result['sent']} | Failed: {result['failed']}"
+        )
+        return result
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        db.close()
+
+
 if __name__ == "__main__":
     scheduler = BlockingScheduler(timezone="UTC")
     scheduler.add_job(
@@ -87,7 +115,16 @@ if __name__ == "__main__":
         max_instances=1,
         coalesce=True,
     )
-    print("SLA Scheduler started. Interval: 15 minutes.")
+    scheduler.add_job(
+        run_notification_cycle,
+        trigger="interval",
+        minutes=1,
+        next_run_time=datetime.now(timezone.utc),
+        id="notification_outbox_job",
+        max_instances=1,
+        coalesce=True,
+    )
+    print("SLA and notification schedulers started. Notification interval: 1 minute.")
     try:
         scheduler.start()
     except (KeyboardInterrupt, SystemExit):
