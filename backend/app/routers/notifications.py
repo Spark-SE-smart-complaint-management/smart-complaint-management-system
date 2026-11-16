@@ -17,6 +17,7 @@ from app.models import (
 )
 from app.schemas import (
     NotificationDeliveryOut,
+    NotificationHistoryOut,
     NotificationOut,
     NotificationPreferenceIn,
     NotificationPreferenceOut,
@@ -111,6 +112,60 @@ def set_preferences(
     preference.updated_at = datetime.now(UTC).replace(tzinfo=None)
     db.commit()
     return {"channels": data.channels}
+
+
+@router.get("/history", response_model=list[NotificationHistoryOut])
+def list_notification_history(
+    event: str | None = Query(default=None, min_length=1, max_length=50),
+    user_id: int | None = Query(default=None, ge=1),
+    channel: str | None = Query(default=None, pattern="^(in_app|email|sms)$"),
+    status: str | None = Query(default=None, pattern="^(Pending|Sent|Failed)$"),
+    limit: int = Query(default=100, ge=1, le=500),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    _admin: User = Depends(admin_only),
+):
+    """Return searchable delivery audit metadata for administrators.
+
+    Message bodies and recipient contact details are deliberately excluded.
+    """
+    query = db.query(Notification, NotificationDelivery).join(
+        NotificationDelivery,
+        NotificationDelivery.notification_id == Notification.id,
+    )
+    if event:
+        query = query.filter(Notification.event == event)
+    if user_id is not None:
+        query = query.filter(Notification.user_id == user_id)
+    if channel:
+        query = query.filter(NotificationDelivery.channel == channel)
+    if status:
+        query = query.filter(NotificationDelivery.delivery_status == status)
+    rows = (
+        query.order_by(
+            Notification.created_at.desc(),
+            Notification.id.desc(),
+            NotificationDelivery.id.desc(),
+        )
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    return [
+        {
+            "id": notification.id,
+            "user_id": notification.user_id,
+            "event": notification.event,
+            "channel": delivery.channel,
+            "delivery_status": delivery.delivery_status,
+            "is_read": notification.is_read,
+            "attempts": delivery.attempts,
+            "last_error": delivery.last_error,
+            "next_attempt_at": delivery.next_attempt_at,
+            "created_at": notification.created_at,
+        }
+        for notification, delivery in rows
+    ]
 
 
 @router.get("/deliveries", response_model=list[NotificationDeliveryOut])

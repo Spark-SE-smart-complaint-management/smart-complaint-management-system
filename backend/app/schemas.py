@@ -159,6 +159,21 @@ class NotificationOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class NotificationHistoryOut(BaseModel):
+    """Admin-safe notification audit metadata without message bodies."""
+
+    id: int
+    user_id: int
+    event: str
+    channel: str
+    delivery_status: str
+    is_read: bool
+    attempts: int
+    last_error: str | None
+    next_attempt_at: datetime | None
+    created_at: datetime
+
+
 class NotificationDeliveryOut(BaseModel):
     id: int
     notification_id: int

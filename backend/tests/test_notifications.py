@@ -140,3 +140,48 @@ def test_sla_event_helpers_deduplicate_per_recipient(db):
     assert len(first) == 2
     assert {row.user_id for row in first} == {staff.id, admin.id}
     assert db.query(NotificationDelivery).count() == 3
+
+
+def test_admin_notification_history_filters_and_hides_message_content(client, db):
+    recipient = make_user(db, "notification-history-user@example.com")
+    admin = make_user(db, "notification-history-admin@example.com", Role.ADMIN)
+    notify(
+        db,
+        recipient.id,
+        "COMPLAINT_SUBMITTED",
+        "Private complaint description must not appear in admin history.",
+        channel="in_app",
+        idempotency_key="history:submitted:1",
+    )
+    notify(
+        db,
+        recipient.id,
+        "COMPLAINT_STATUS_CHANGED",
+        "Complaint CMP-2026-700002 status changed.",
+        channel="email",
+        idempotency_key="history:status:2",
+    )
+    db.commit()
+
+    user_headers = auth_header(client, recipient.email)
+    forbidden = client.get("/notifications/history", headers=user_headers)
+    assert forbidden.status_code == 403
+
+    admin_headers = auth_header(client, admin.email)
+    response = client.get(
+        "/notifications/history?event=COMPLAINT_SUBMITTED&channel=in_app",
+        headers=admin_headers,
+    )
+    assert response.status_code == 200
+    rows = response.json()
+    assert len(rows) == 1
+    assert rows[0]["user_id"] == recipient.id
+    assert rows[0]["event"] == "COMPLAINT_SUBMITTED"
+    assert rows[0]["channel"] == "in_app"
+    assert rows[0]["delivery_status"] == "Sent"
+    assert "message" not in rows[0]
+    assert "Private complaint description" not in response.text
+
+    failed = client.get("/notifications/history?status=Failed", headers=admin_headers)
+    assert failed.status_code == 200
+    assert failed.json() == []
