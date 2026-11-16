@@ -19,7 +19,7 @@ from app.schemas_escalation import (
     EscalationHierarchyOut,
 )
 from app.services.audit import log_action
-from app.services.escalation import escalate_complaint
+from app.services.escalation import escalate_complaint, reverse_automatic_escalation
 
 
 router = APIRouter(
@@ -36,6 +36,10 @@ admin_only = require_role(Role.ADMIN)
 
 
 class ManualEscalationIn(BaseModel):
+    reason: str = Field(min_length=1, max_length=500)
+
+
+class EscalationReversalIn(BaseModel):
     reason: str = Field(min_length=1, max_length=500)
 
 
@@ -354,4 +358,48 @@ def manual_escalation(
         "complaint_id": complaint.id,
         "escalation_level": complaint.escalation_level,
         "status": complaint.status,
+    }
+
+
+
+# --------------------------------------------------
+# Reverse automatic escalation (administrator only)
+# --------------------------------------------------
+
+
+@router.post("/complaints/{complaint_id}/reverse")
+def reverse_escalation(
+    complaint_id: int,
+    data: EscalationReversalIn,
+    db: Session = Depends(get_db),
+    admin: User = Depends(admin_only),
+):
+    complaint = db.get(Complaint, complaint_id)
+    if complaint is None or complaint.is_archived:
+        raise HTTPException(404, "Complaint not found")
+
+    reason = data.reason.strip()
+    if not reason:
+        raise HTTPException(422, "Reversal reason is required")
+
+    try:
+        event = reverse_automatic_escalation(
+            db,
+            complaint,
+            admin_id=admin.id,
+            reason=reason,
+        )
+        db.commit()
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(409, str(exc)) from exc
+
+    return {
+        "message": "Automatic escalation reversed successfully",
+        "complaint_id": complaint.id,
+        "reversal_audit_id": event.id,
+        "status": complaint.status,
+        "escalation_level": complaint.escalation_level,
+        "assignee_id": complaint.assignee_id,
+        "assigned_department": complaint.assigned_department,
     }
