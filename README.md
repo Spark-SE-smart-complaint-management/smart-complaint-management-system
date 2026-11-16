@@ -19,7 +19,7 @@ python -m uvicorn app.main:app --reload
 
 For macOS/Linux, activate with `source .venv/bin/activate`; set `ADMIN_PASSWORD` with the shell's environment-variable syntax before running the seed command. The seed command creates `admin@example.com` unless `ADMIN_EMAIL` is set. It never prints the password. Do not reuse a local password in another environment.
 
-The API is available at <http://127.0.0.1:8000> and interactive API documentation at <http://127.0.0.1:8000/docs>.
+The API is available at <http://127.0.0.1:8000> and interactive API documentation at <http://127.0.0.1:8000/docs>. For scheduled SLA escalation and notification outbox delivery, open a second terminal in `backend/` and run `python -m app.scheduler`. Keep one scheduler process running alongside the API; configure SMTP/SMS environment variables before expecting external delivery. See [notification setup and acceptance](docs/issue-11-notifications.md).
 
 ## Checks
 
