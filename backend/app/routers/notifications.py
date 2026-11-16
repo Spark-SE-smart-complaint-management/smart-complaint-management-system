@@ -131,7 +131,10 @@ def list_notification_history(
     """
     query = (
         db.query(Notification, NotificationDelivery)
-        .join(NotificationDelivery, NotificationDelivery.notification_id == Notification.id)
+        .join(
+            NotificationDelivery,
+            NotificationDelivery.notification_id == Notification.id,
+        )
     )
     if event:
         query = query.filter(Notification.event == event)
@@ -142,7 +145,11 @@ def list_notification_history(
     if status:
         query = query.filter(NotificationDelivery.delivery_status == status)
     rows = (
-        query.order_by(Notification.created_at.desc(), Notification.id.desc(), NotificationDelivery.id.desc())
+        query.order_by(
+            Notification.created_at.desc(),
+            Notification.id.desc(),
+            NotificationDelivery.id.desc(),
+        )
         .offset(offset)
         .limit(limit)
         .all()
