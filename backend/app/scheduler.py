@@ -16,6 +16,8 @@ def run_sla_cycle():
     try:
         now = datetime.now(timezone.utc).replace(tzinfo=None)
 
+        # Stream eligible records in bounded batches rather than loading every
+        # open complaint into memory (important for the 50,000-complaint target).
         complaints = (
             db.query(Complaint)
             .filter(
@@ -24,13 +26,16 @@ def run_sla_cycle():
                 Complaint.sla_paused_at.is_(None),
                 Complaint.status.notin_([Status.RESOLVED, Status.CLOSED]),
             )
-            .all()
+            .order_by(Complaint.id.asc())
+            .yield_per(500)
         )
 
+        processed_count = 0
         warning_count = 0
         escalation_count = 0
 
         for complaint in complaints:
+            processed_count += 1
             complaint.sla_status = classify_sla(
                 complaint.created_at,
                 complaint.sla_deadline,
@@ -53,7 +58,7 @@ def run_sla_cycle():
 
         print(
             f"[SLA Scheduler] {now} | "
-            f"Processed: {len(complaints)} | "
+            f"Processed: {processed_count} | "
             f"Warnings: {warning_count} | "
             f"Escalations: {escalation_count}"
         )
