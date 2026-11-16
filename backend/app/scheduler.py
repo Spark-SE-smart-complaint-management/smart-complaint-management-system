@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timezone
 
 from apscheduler.schedulers.blocking import BlockingScheduler
@@ -9,72 +10,74 @@ from app.services.sla import classify_sla
 
 
 def run_sla_cycle():
-    """Process all eligible complaints for SLA warnings and escalation."""
+    """Process eligible complaints in bounded, keyset-paginated batches."""
 
-    db = SessionLocal()
+    batch_size = max(50, int(os.getenv("SLA_SCHEDULER_BATCH_SIZE", "500")))
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    last_id = 0
+    processed_count = 0
+    warning_count = 0
+    escalation_count = 0
 
-    try:
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
+    while True:
+        db = SessionLocal()
+        try:
+            batch_ids = [
+                row.id
+                for row in (
+                    db.query(Complaint.id)
+                    .filter(
+                        Complaint.id > last_id,
+                        Complaint.sla_deadline.isnot(None),
+                        Complaint.is_archived.is_(False),
+                        Complaint.sla_paused_at.is_(None),
+                        Complaint.status.notin_([Status.RESOLVED, Status.CLOSED]),
+                    )
+                    .order_by(Complaint.id.asc())
+                    .limit(batch_size)
+                    .all()
+                )
+            ]
+            if not batch_ids:
+                break
 
-        # Stream eligible records in bounded batches rather than loading every
-        # open complaint into memory (important for the 50,000-complaint target).
-        complaints = (
-            db.query(Complaint)
-            .filter(
-                Complaint.sla_deadline.isnot(None),
-                Complaint.is_archived.is_(False),
-                Complaint.sla_paused_at.is_(None),
-                Complaint.status.notin_([Status.RESOLVED, Status.CLOSED]),
+            complaints = (
+                db.query(Complaint)
+                .filter(Complaint.id.in_(batch_ids))
+                .order_by(Complaint.id.asc())
+                .all()
             )
-            .order_by(Complaint.id.asc())
-            .yield_per(500)
-        )
 
-        processed_count = 0
-        warning_count = 0
-        escalation_count = 0
+            for complaint in complaints:
+                complaint.sla_status = classify_sla(
+                    complaint.created_at,
+                    complaint.sla_deadline,
+                    now,
+                )
+                result = process_sla_complaint(db, complaint, now)
+                processed_count += 1
+                warning_count += int(result["warning_sent"])
+                escalation_count += int(result["escalated"])
 
-        for complaint in complaints:
-            processed_count += 1
-            complaint.sla_status = classify_sla(
-                complaint.created_at,
-                complaint.sla_deadline,
-                now,
-            )
+            db.commit()
+            last_id = batch_ids[-1]
+        except Exception:
+            db.rollback()
+            raise
+        finally:
+            db.close()
 
-            result = process_sla_complaint(
-                db,
-                complaint,
-                now,
-            )
-
-            if result["warning_sent"]:
-                warning_count += 1
-
-            if result["escalated"]:
-                escalation_count += 1
-
-        db.commit()
-
-        print(
-            f"[SLA Scheduler] {now} | "
-            f"Processed: {processed_count} | "
-            f"Warnings: {warning_count} | "
-            f"Escalations: {escalation_count}"
-        )
-
-    except Exception:
-        db.rollback()
-        raise
-
-    finally:
-        db.close()
+    print(
+        f"[SLA Scheduler] {now} | "
+        f"Processed: {processed_count} | "
+        f"Warnings: {warning_count} | "
+        f"Escalations: {escalation_count} | "
+        f"Batch size: {batch_size}"
+    )
 
 
 if __name__ == "__main__":
     scheduler = BlockingScheduler(timezone="UTC")
-
-    # Run once immediately, then every 15 minutes.
     scheduler.add_job(
         run_sla_cycle,
         trigger="interval",
@@ -84,9 +87,7 @@ if __name__ == "__main__":
         max_instances=1,
         coalesce=True,
     )
-
     print("SLA Scheduler started. Interval: 15 minutes.")
-
     try:
         scheduler.start()
     except (KeyboardInterrupt, SystemExit):
