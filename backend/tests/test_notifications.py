@@ -146,19 +146,26 @@ def test_admin_notification_history_filters_and_hides_message_content(client, db
     recipient = make_user(db, "notification-history-user@example.com")
     admin = make_user(db, "notification-history-admin@example.com", Role.ADMIN)
     notify(
-        db, recipient.id, "COMPLAINT_SUBMITTED",
+        db,
+        recipient.id,
+        "COMPLAINT_SUBMITTED",
         "Private complaint description must not appear in admin history.",
-        channel="in_app", idempotency_key="history:submitted:1",
+        channel="in_app",
+        idempotency_key="history:submitted:1",
     )
     notify(
-        db, recipient.id, "COMPLAINT_STATUS_CHANGED",
+        db,
+        recipient.id,
+        "COMPLAINT_STATUS_CHANGED",
         "Complaint CMP-2026-700002 status changed.",
-        channel="email", idempotency_key="history:status:2",
+        channel="email",
+        idempotency_key="history:status:2",
     )
     db.commit()
 
     user_headers = auth_header(client, recipient.email)
-    assert client.get("/notifications/history", headers=user_headers).status_code == 403
+    forbidden = client.get("/notifications/history", headers=user_headers)
+    assert forbidden.status_code == 403
 
     admin_headers = auth_header(client, admin.email)
     response = client.get(
