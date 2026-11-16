@@ -81,8 +81,7 @@ def run_notification_cycle():
             else {"attempted": 0, "sent": 0, "failed": 0}
         )
         result = {
-            key: retried[key] + pending[key]
-            for key in ("attempted", "sent", "failed")
+            key: retried[key] + pending[key] for key in ("attempted", "sent", "failed")
         }
         print(
             f"[Notification Scheduler] Attempted: {result['attempted']} | "
