@@ -170,6 +170,7 @@ def list_notification_history(
         for notification, delivery in rows
     ]
 
+
 @router.get("/deliveries", response_model=list[NotificationDeliveryOut])
 def list_delivery_log(
     status: str | None = Query(default=None, pattern="^(Pending|Sent|Failed)$"),
