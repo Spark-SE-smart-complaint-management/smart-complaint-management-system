@@ -129,12 +129,9 @@ def list_notification_history(
 
     Message bodies and recipient contact details are deliberately excluded.
     """
-    query = (
-        db.query(Notification, NotificationDelivery)
-        .join(
-            NotificationDelivery,
-            NotificationDelivery.notification_id == Notification.id,
-        )
+    query = db.query(Notification, NotificationDelivery).join(
+        NotificationDelivery,
+        NotificationDelivery.notification_id == Notification.id,
     )
     if event:
         query = query.filter(Notification.event == event)
